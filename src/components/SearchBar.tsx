@@ -70,7 +70,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="请输入剧名，例如 Breaking Bad"
-            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] py-3 pl-10 pr-4 text-[var(--color-ink)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)]"
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] py-3 pl-10 pr-4 text-[var(--color-ink)] shadow-[0_5px_18px_var(--color-shadow)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)]"
           />
         </div>
         <button
@@ -99,7 +99,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
               return (
                 <div
                   key={item.tmdbId}
-                  className="flex gap-3 border-b border-[var(--color-border)] p-4 last:border-b-0"
+                  className="flex gap-3 border-b border-[var(--color-border)] p-3 last:border-b-0"
                 >
                   {item.poster ? (
                     <img
@@ -120,9 +120,11 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
                       </div>
                       <StatusTag kind="airing" value={item.status} />
                     </div>
-                    <p className="mt-1 text-sm text-[var(--color-muted)]">
-                      {item.country} · {item.year ?? '年份待补'} · {item.seasons}季 · {item.episodes}集
-                    </p>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-[var(--color-muted)]">
+                      <span>{item.country}</span>
+                      <span>{item.year ?? '年份待补'}</span>
+                      <span>{item.seasons}季 {item.episodes}集</span>
+                    </div>
                     <button
                       type="button"
                       disabled={added}

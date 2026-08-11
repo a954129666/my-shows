@@ -20,6 +20,11 @@ import { parseCsvToShows } from './utils/csv'
 
 type WatchFilter = WatchStatus | 'all'
 type SortOrder = 'recent' | 'name' | 'progress'
+type MetadataFilter = 'all' | 'complete' | 'incomplete'
+
+function hasCompleteMetadata(show: Show): boolean {
+  return show.tmdbId > 0 && Boolean(show.poster && show.year && show.seasonEpisodes?.length)
+}
 
 function isShowBackup(value: unknown): value is Show[] {
   return (
@@ -50,14 +55,14 @@ function StatCard({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl border px-4 py-3 text-left transition active:scale-[0.98] ${
+      className={`rounded-lg px-3 py-2.5 text-left transition active:scale-[0.98] ${
         active
-          ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]'
-          : 'border-[var(--color-border)] bg-[var(--color-surface-elevated)] hover:border-[var(--color-accent-muted)]'
+          ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
+          : 'text-[var(--color-ink)] hover:bg-[var(--color-surface)]'
       }`}
     >
-      <p className="text-sm text-[var(--color-muted)]">{label}</p>
-      <p className="mt-1 font-mono text-2xl font-semibold text-[var(--color-ink)]">{value}</p>
+      <p className="text-xs text-[var(--color-muted)]">{label}</p>
+      <p className="mt-0.5 font-mono text-xl font-semibold">{value}</p>
     </button>
   )
 }
@@ -88,9 +93,9 @@ function ShowSection({
   onSelectionChange: (id: string, selected: boolean) => void
 }) {
   return (
-    <section className="mt-8">
-      <div className="mb-4 flex items-baseline justify-between gap-4">
-        <h2 className="text-xl font-semibold text-[var(--color-ink)]">{title}</h2>
+    <section className="mt-7">
+      <div className="mb-3 flex items-baseline justify-between gap-4 border-b border-[var(--color-border)] pb-2">
+        <h2 className="text-lg font-semibold text-[var(--color-ink)]">{title}</h2>
         <span className="font-mono text-sm text-[var(--color-muted)]">{shows.length}</span>
       </div>
       {shows.length === 0 ? (
@@ -98,7 +103,7 @@ function ShowSection({
           {emptyHint}
         </p>
       ) : (
-        <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'grid grid-cols-1 gap-3'}>
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'grid grid-cols-1 gap-2'}>
           {shows.map((show) => (
             <ShowCard
               key={show.id}
@@ -126,6 +131,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   const [enrichmentMessage, setEnrichmentMessage] = useState<string | null>(null)
   const [watchFilter, setWatchFilter] = useState<WatchFilter>('all')
   const [airingFilter, setAiringFilter] = useState<AiringStatus | 'all'>('all')
+  const [metadataFilter, setMetadataFilter] = useState<MetadataFilter>('all')
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [libraryQuery, setLibraryQuery] = useState('')
@@ -169,12 +175,14 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
     const normalizedQuery = libraryQuery.trim().toLocaleLowerCase()
     const filtered = items.filter((show) => {
       const matchesAiring = airingFilter === 'all' || show.status === airingFilter
+      const completeMetadata = hasCompleteMetadata(show)
+      const matchesMetadata = metadataFilter === 'all' || (metadataFilter === 'complete' ? completeMetadata : !completeMetadata)
       const matchesQuery =
         !normalizedQuery ||
         [show.name, show.englishName, show.country].some((value) =>
           value.toLocaleLowerCase().includes(normalizedQuery),
         )
-      return matchesAiring && matchesQuery
+      return matchesAiring && matchesMetadata && matchesQuery
     })
     return [...filtered].sort((a, b) => {
       if (sortOrder === 'name') return a.name.localeCompare(b.name, 'zh-CN')
@@ -257,9 +265,19 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   }
 
   function deduplicate() {
-    if (window.confirm(`检测到 ${duplicateTmdbGroupCount} 组重复剧集。将保留每组最早添加的一条记录，是否继续？`)) {
+    if (window.confirm(`检测到 ${duplicateTmdbGroupCount} 组重复剧集。将保留资料更完整的一条，并合并观看状态和进度。是否继续？`)) {
       deduplicateTmdbShows()
     }
+  }
+
+  const visibleSections = sections
+    .filter((section) => watchFilter === 'all' || section.key === watchFilter)
+    .map((section) => ({ ...section, shows: filterAndSort(showsByStatus[section.key]) }))
+  const visibleIds = visibleSections.flatMap((section) => section.shows.map((show) => show.id))
+
+  function selectVisibleShows() {
+    setSelecting(true)
+    setSelectedIds(new Set(visibleIds))
   }
 
   function handleAddFromTmdb(preview: TmdbShowPreview) {
@@ -313,60 +331,24 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   }
 
   return (
-    <div className="mx-auto min-h-[100dvh] max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
-      <header className="border-b border-[var(--color-border)] pb-6">
+    <div className="mx-auto min-h-[100dvh] max-w-[1360px] px-4 py-5 sm:px-6 lg:px-8">
+      <header>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
+            <h1 className="text-3xl font-semibold tracking-[-0.025em] text-[var(--color-ink)] sm:text-[2.15rem]">
               我的影视库
             </h1>
-            <p className="mt-2 text-[var(--color-muted)]">My Shows · 个人英美剧观看记录</p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">My Shows · 个人英美剧观看记录</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2">
             {userId && (
-              <div className="flex items-center rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-muted)]" title={syncError ?? undefined}>
+              <div className="flex items-center rounded-lg bg-[var(--color-surface-elevated)] px-3 py-2 text-xs text-[var(--color-muted)] shadow-[inset_0_0_0_1px_var(--color-border)]" title={syncError ?? undefined}>
                 {syncState === 'saving' ? '正在同步…' : syncState === 'error' ? '同步失败' : '云端已同步'}
               </div>
             )}
-            <button
-              type="button"
-              onClick={handleEnrichment}
-              disabled={enrichmentProgress !== null || unlinkedCount === 0}
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {enrichmentProgress ? <Spinner size={18} className="animate-spin" /> : <ArrowsClockwise size={18} />}
-              {enrichmentProgress
-                ? `补全中 ${enrichmentProgress.completed}/${enrichmentProgress.total}`
-                : `补全信息与海报 (${unlinkedCount})`}
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2.5 text-sm text-[var(--color-ink)] transition active:scale-[0.98] hover:bg-zinc-50 dark:hover:bg-zinc-800"
-            >
-              <UploadSimple size={18} />
-              导入 CSV
-            </button>
-            <button
-              type="button"
-              onClick={exportBackup}
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2.5 text-sm text-[var(--color-ink)] transition active:scale-[0.98] hover:bg-zinc-50 dark:hover:bg-zinc-800"
-            >
-              <DownloadSimple size={18} />
-              导出备份
-            </button>
-            <button
-              type="button"
-              onClick={() => restoreInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2.5 text-sm text-[var(--color-ink)] transition active:scale-[0.98] hover:bg-zinc-50 dark:hover:bg-zinc-800"
-            >
-              <FileArrowUp size={18} />
-              恢复备份
-            </button>
             {onLogout && (
-              <button type="button" onClick={onLogout} title={email ? `退出 ${email}` : '退出登录'} className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-3 py-2.5 text-sm text-[var(--color-muted)]">
-                <SignOut size={18} />
-                退出
+              <button type="button" onClick={onLogout} title={email ? `退出 ${email}` : '退出登录'} aria-label="退出登录" className="rounded-lg p-2 text-[var(--color-muted)] transition hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-ink)] active:scale-[0.98]">
+                <SignOut size={19} />
               </button>
             )}
           </div>
@@ -386,15 +368,25 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
           />
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-5">
+          <SearchBar onAdd={handleAddFromTmdb} isAdded={hasTmdbId} />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-1 sm:grid-cols-4">
           <StatCard label="总剧数" value={stats.total} active={watchFilter === 'all'} onClick={() => chooseWatchFilter('all')} />
           <StatCard label="观看中" value={stats.watching} active={watchFilter === 'watching'} onClick={() => chooseWatchFilter('watching')} />
           <StatCard label="已看完" value={stats.completed} active={watchFilter === 'completed'} onClick={() => chooseWatchFilter('completed')} />
           <StatCard label="待看" value={stats.planned} active={watchFilter === 'planned'} onClick={() => chooseWatchFilter('planned')} />
         </div>
 
-        <div className="mt-6">
-          <SearchBar onAdd={handleAddFromTmdb} isAdded={hasTmdbId} />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={handleEnrichment} disabled={enrichmentProgress !== null || unlinkedCount === 0} className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-3 py-2 text-sm font-medium text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50">
+            {enrichmentProgress ? <Spinner size={17} className="animate-spin" /> : <ArrowsClockwise size={17} />}
+            {enrichmentProgress ? `补全中 ${enrichmentProgress.completed}/${enrichmentProgress.total}` : `补全资料 (${unlinkedCount})`}
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2 text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)] active:scale-[0.98]"><UploadSimple size={17} />导入 CSV</button>
+          <button type="button" onClick={exportBackup} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2 text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)] active:scale-[0.98]"><DownloadSimple size={17} />导出备份</button>
+          <button type="button" onClick={() => restoreInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2 text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)] active:scale-[0.98]"><FileArrowUp size={17} />恢复备份</button>
         </div>
         {enrichmentMessage && (
           <p className="mt-3 text-sm text-[var(--color-muted)]" role="status">
@@ -406,8 +398,9 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
       {syncError && <p className="mt-3 text-sm text-rose-600" role="status">{syncError}</p>}
 
       <main id="show-library" className="scroll-mt-4">
-        <div className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3">
-          <label className="flex min-w-48 flex-1 flex-col gap-1.5 text-xs text-[var(--color-muted)]">
+        <div className="sticky top-2 z-10 mt-5 rounded-xl border border-[var(--color-border)] bg-[color:var(--color-surface-elevated)/0.96] p-3 shadow-[0_8px_28px_var(--color-shadow)] backdrop-blur-sm">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(15rem,1fr)_auto_auto_auto_auto]">
+          <label className="flex min-w-48 flex-col gap-1 text-xs text-[var(--color-muted)]">
             搜索我的剧库
             <span className="relative">
               <MagnifyingGlass size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)]" />
@@ -415,12 +408,12 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
                 value={libraryQuery}
                 onChange={(event) => setLibraryQuery(event.target.value)}
                 placeholder="剧名、英文名或国家"
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-9 pr-3 text-sm text-[var(--color-ink)]"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-9 pr-3 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-accent)]"
               />
             </span>
           </label>
-          <label className="flex flex-col gap-1.5 text-xs text-[var(--color-muted)]">
-            列表状态
+          <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)]">
+            观看状态
             <select value={watchFilter} onChange={(event) => setWatchFilter(event.target.value as WatchFilter)} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink)]">
               <option value="all">全部</option>
               <option value="watching">正在观看</option>
@@ -429,30 +422,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
               <option value="dropped">已弃剧</option>
             </select>
           </label>
-          <div className="flex flex-col gap-1.5 text-xs text-[var(--color-muted)]">
-            展示方式
-            <div className="flex rounded-lg border border-[var(--color-border)] p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                className={`rounded-md p-2 ${viewMode === 'grid' ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]' : 'text-[var(--color-muted)]'}`}
-                aria-label="卡片展示"
-                aria-pressed={viewMode === 'grid'}
-              >
-                <SquaresFour size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`rounded-md p-2 ${viewMode === 'list' ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]' : 'text-[var(--color-muted)]'}`}
-                aria-label="列表展示"
-                aria-pressed={viewMode === 'list'}
-              >
-                <ListBullets size={18} />
-              </button>
-            </div>
-          </div>
-          <label className="flex flex-col gap-1.5 text-xs text-[var(--color-muted)]">
+          <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)]">
             播出状态
             <select value={airingFilter} onChange={(event) => setAiringFilter(event.target.value as AiringStatus | 'all')} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink)]">
               <option value="all">全部</option>
@@ -460,7 +430,15 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
               <option value="ended">已完结</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1.5 text-xs text-[var(--color-muted)]">
+          <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)]">
+            资料完整度
+            <select value={metadataFilter} onChange={(event) => setMetadataFilter(event.target.value as MetadataFilter)} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink)]">
+              <option value="all">全部</option>
+              <option value="complete">资料完整</option>
+              <option value="incomplete">资料待补</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)]">
             排序
             <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as SortOrder)} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink)]">
               <option value="recent">最近添加</option>
@@ -468,11 +446,20 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
               <option value="progress">观看进度</option>
             </select>
           </label>
-          <div className="flex flex-wrap items-center gap-2 self-end">
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] pt-2">
+            <div className="flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5" aria-label="展示方式">
+              <button type="button" onClick={() => setViewMode('grid')} className={`rounded-md p-1.5 ${viewMode === 'grid' ? 'bg-[var(--color-surface-elevated)] text-[var(--color-accent)] shadow-sm' : 'text-[var(--color-muted)]'}`} aria-label="卡片展示" aria-pressed={viewMode === 'grid'}><SquaresFour size={17} /></button>
+              <button type="button" onClick={() => setViewMode('list')} className={`rounded-md p-1.5 ${viewMode === 'list' ? 'bg-[var(--color-surface-elevated)] text-[var(--color-accent)] shadow-sm' : 'text-[var(--color-muted)]'}`} aria-label="列表展示" aria-pressed={viewMode === 'list'}><ListBullets size={17} /></button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+            {selecting && visibleIds.length > 0 && (
+              <button type="button" onClick={selectVisibleShows} className="rounded-lg px-3 py-1.5 text-sm text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)]">选择当前结果 ({visibleIds.length})</button>
+            )}
             <button
               type="button"
               onClick={() => (selecting ? leaveSelectionMode() : setSelecting(true))}
-              className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-ink)] transition active:scale-[0.98] hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-ink)] transition active:scale-[0.98] hover:bg-[var(--color-surface)]"
             >
               {selecting ? '取消选择' : '批量管理'}
             </button>
@@ -480,11 +467,12 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
               <button
                 type="button"
                 onClick={deduplicate}
-                className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-ink)]"
+                className="rounded-lg bg-[var(--color-accent-muted)] px-3 py-1.5 text-sm font-medium text-[var(--color-accent)] transition active:scale-[0.98]"
               >
-                清理重复 ({duplicateTmdbGroupCount})
+                合并重复 ({duplicateTmdbGroupCount})
               </button>
             )}
+            </div>
           </div>
         </div>
         {selecting && (
@@ -504,13 +492,11 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
             <button type="button" onClick={deleteSelected} disabled={selectedIds.size === 0} className="rounded-lg px-3 py-2 text-rose-700 disabled:opacity-50">删除选中</button>
           </div>
         )}
-        {sections
-          .filter((section) => watchFilter === 'all' || section.key === watchFilter)
-          .map((section) => (
+        {visibleSections.map((section) => (
             <ShowSection
               key={section.key}
               title={section.title}
-              shows={filterAndSort(showsByStatus[section.key])}
+              shows={section.shows}
               emptyHint={section.emptyHint}
               onUpdateProgress={updateProgress}
               onCompleteCurrentSeason={completeCurrentSeason}

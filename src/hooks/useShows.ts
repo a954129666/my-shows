@@ -25,6 +25,44 @@ function computeStats(shows: Show[]): ShowStats {
   }
 }
 
+function normalizeShowName(value: string): string {
+  return value.toLocaleLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '')
+}
+
+function showAliases(show: Show): Set<string> {
+  return new Set(
+    [show.name, show.englishName]
+      .map(normalizeShowName)
+      .filter((name) => name.length >= 2),
+  )
+}
+
+function isSameShow(left: Show, right: Show): boolean {
+  if (left.tmdbId > 0 && right.tmdbId > 0) return left.tmdbId === right.tmdbId
+  if (left.year && right.year && left.year !== right.year) return false
+  const rightAliases = showAliases(right)
+  return [...showAliases(left)].some((alias) => rightAliases.has(alias))
+}
+
+function findDuplicateGroups(shows: Show[]): Show[][] {
+  const groups: Show[][] = []
+  for (const show of shows) {
+    const group = groups.find((items) => items.some((item) => isSameShow(item, show)))
+    if (group) group.push(show)
+    else groups.push([show])
+  }
+  return groups.filter((group) => group.length > 1)
+}
+
+function metadataScore(show: Show): number {
+  return Number(show.tmdbId > 0) * 5 + Number(Boolean(show.poster)) * 3 + Number(Boolean(show.year)) * 2 + Number(Boolean(show.seasonEpisodes?.length)) * 2 + Number(show.episodes > 0)
+}
+
+function progressScore(show: Show): number {
+  const statusWeight: Record<WatchStatus, number> = { completed: 4, watching: 3, dropped: 2, planned: 1 }
+  return statusWeight[show.watchStatus] * 1_000_000 + show.currentSeason * 10_000 + show.currentEpisode
+}
+
 export function useShows(userId?: string) {
   const [shows, setShows] = useState<Show[]>(() => initShows())
   const [cloudLoading, setCloudLoading] = useState(Boolean(userId))
@@ -206,24 +244,24 @@ export function useShows(userId?: string) {
     }
   }, [userId])
 
-  const duplicateTmdbGroupCount = useMemo(() => {
-    const counts = new Map<number, number>()
-    shows.filter((show) => show.tmdbId > 0).forEach((show) => {
-      counts.set(show.tmdbId, (counts.get(show.tmdbId) ?? 0) + 1)
-    })
-    return [...counts.values()].filter((count) => count > 1).length
-  }, [shows])
+  const duplicateTmdbGroupCount = useMemo(() => findDuplicateGroups(shows).length, [shows])
 
   const deduplicateTmdbShows = useCallback(() => {
     setShows((prev) => {
-      const earliestByTmdbId = new Map<number, Show>()
-      prev.filter((show) => show.tmdbId > 0).forEach((show) => {
-        const existing = earliestByTmdbId.get(show.tmdbId)
-        if (!existing || show.createdAt < existing.createdAt) earliestByTmdbId.set(show.tmdbId, show)
+      const duplicateGroups = findDuplicateGroups(prev)
+      const duplicateIds = new Set(duplicateGroups.flatMap((group) => group.map((show) => show.id)))
+      const merged = duplicateGroups.map((group) => {
+        const metadataSource = [...group].sort((a, b) => metadataScore(b) - metadataScore(a))[0]
+        const progressSource = [...group].sort((a, b) => progressScore(b) - progressScore(a))[0]
+        return {
+          ...metadataSource,
+          watchStatus: progressSource.watchStatus,
+          currentSeason: progressSource.currentSeason,
+          currentEpisode: progressSource.currentEpisode,
+          createdAt: [...group].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0].createdAt,
+        }
       })
-      const next = prev.filter(
-        (show) => show.tmdbId === 0 || earliestByTmdbId.get(show.tmdbId)?.id === show.id,
-      )
+      const next = [...merged, ...prev.filter((show) => !duplicateIds.has(show.id))]
       if (userId) {
         const keptIds = new Set(next.map((show) => show.id))
         deleteCloudShows(prev.filter((show) => !keptIds.has(show.id)).map((show) => show.id)).catch(() => setSyncState('error'))

@@ -42,7 +42,9 @@ async function parseResponse<T>(response: Response): Promise<T> {
     const body = (await response.json().catch(() => null)) as { message?: string; error_description?: string } | null
     throw new Error(body?.message ?? body?.error_description ?? `请求失败 (${response.status})`)
   }
-  return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>)
+  if (response.status === 204) return undefined as T
+  const text = await response.text()
+  return text ? (JSON.parse(text) as T) : (undefined as T)
 }
 
 export function loadStoredSession(): AuthSession | null {
