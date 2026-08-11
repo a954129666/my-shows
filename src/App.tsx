@@ -398,7 +398,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
       {syncError && <p className="mt-3 text-sm text-rose-600" role="status">{syncError}</p>}
 
       <main id="show-library" className="scroll-mt-4">
-        <div className="sticky top-2 z-10 mt-5 rounded-xl border border-[var(--color-border)] bg-[color:var(--color-surface-elevated)/0.96] p-3 shadow-[0_8px_28px_var(--color-shadow)] backdrop-blur-sm">
+        <div className="mt-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3 shadow-[0_4px_16px_var(--color-shadow)]">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(15rem,1fr)_auto_auto_auto_auto]">
           <label className="flex min-w-48 flex-col gap-1 text-xs text-[var(--color-muted)]">
             搜索我的剧库
