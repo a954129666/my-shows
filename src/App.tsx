@@ -132,7 +132,6 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   const [selecting, setSelecting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkStatus, setBulkStatus] = useState<WatchStatus>('planned')
-  const [migrationMessage, setMigrationMessage] = useState<string | null>(null)
   const {
     shows,
     stats,
@@ -154,8 +153,6 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
     cloudLoading,
     syncState,
     syncError,
-    localImportCount,
-    migrateLocalShows,
   } = useShows(userId)
 
   const sections = useMemo(
@@ -311,15 +308,6 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
     setEnrichmentMessage(`已补全 ${result.updated} 部，${result.skipped} 部未能自动匹配`)
   }
 
-  async function handleLocalMigration() {
-    try {
-      const migrated = await migrateLocalShows()
-      setMigrationMessage(migrated > 0 ? `已将 ${migrated} 条本机记录迁移到云端` : '本机数据已全部存在于云端')
-    } catch (reason) {
-      setMigrationMessage(reason instanceof Error ? reason.message : '迁移失败，请稍后重试')
-    }
-  }
-
   if (cloudLoading) {
     return <div className="flex min-h-[100dvh] items-center justify-center gap-2 text-[var(--color-muted)]"><Spinner size={20} className="animate-spin" />正在读取云端剧库…</div>
   }
@@ -415,20 +403,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
         )}
       </header>
 
-      {userId && localImportCount > 0 && (
-        <section className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-accent-muted)] bg-[var(--color-accent-muted)] px-4 py-3">
-          <div>
-            <p className="font-medium text-[var(--color-ink)]">发现这台浏览器中有 {localImportCount} 条本机记录</p>
-            <p className="mt-0.5 text-sm text-[var(--color-muted)]">迁移会跳过云端已有的同一部剧，不删除本机备份。</p>
-          </div>
-          <button type="button" onClick={handleLocalMigration} className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white">迁移到云端</button>
-        </section>
-      )}
-      {(migrationMessage || syncError) && (
-        <p className={`mt-3 text-sm ${syncError ? 'text-rose-600' : 'text-[var(--color-muted)]'}`} role="status">
-          {syncError ?? migrationMessage}
-        </p>
-      )}
+      {syncError && <p className="mt-3 text-sm text-rose-600" role="status">{syncError}</p>}
 
       <main id="show-library" className="scroll-mt-4">
         <div className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3">

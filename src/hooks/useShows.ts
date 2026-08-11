@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Show, ShowInput, ShowStats, WatchStatus } from '../types/show'
 import { SEED_SHOWS } from '../utils/seed'
 import { createShowId, loadShows, saveShows } from '../utils/storage'
@@ -27,7 +27,6 @@ function computeStats(shows: Show[]): ShowStats {
 
 export function useShows(userId?: string) {
   const [shows, setShows] = useState<Show[]>(() => initShows())
-  const localCandidateRef = useRef<Show[]>(loadShows())
   const [cloudLoading, setCloudLoading] = useState(Boolean(userId))
   const [cloudReady, setCloudReady] = useState(false)
   const [syncState, setSyncState] = useState<'local' | 'saving' | 'saved' | 'error'>(userId ? 'saving' : 'local')
@@ -233,24 +232,6 @@ export function useShows(userId?: string) {
     })
   }, [userId])
 
-  const migrateLocalShows = useCallback(async () => {
-    if (!userId || localCandidateRef.current.length === 0) return 0
-    const existingTmdbIds = new Set(shows.filter((show) => show.tmdbId > 0).map((show) => show.tmdbId))
-    const existingNames = new Set(shows.map((show) => show.name.trim().toLocaleLowerCase()))
-    const candidates = localCandidateRef.current.filter(
-      (show) =>
-        (show.tmdbId <= 0 || !existingTmdbIds.has(show.tmdbId)) &&
-        !existingNames.has(show.name.trim().toLocaleLowerCase()),
-    )
-    if (candidates.length === 0) return 0
-    setSyncState('saving')
-    await upsertCloudShows(candidates, userId)
-    setShows((current) => [...candidates, ...current])
-    localCandidateRef.current = []
-    setSyncState('saved')
-    return candidates.length
-  }, [shows, userId])
-
   const importShows = useCallback((incoming: ShowInput[]) => {
     setShows((prev) => {
       const existingTmdbIds = new Set(prev.map((s) => s.tmdbId))
@@ -354,7 +335,5 @@ export function useShows(userId?: string) {
     cloudLoading,
     syncState,
     syncError,
-    localImportCount: userId ? localCandidateRef.current.length : 0,
-    migrateLocalShows,
   }
 }
