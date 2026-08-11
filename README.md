@@ -1,94 +1,59 @@
 # My Shows - 我的英美剧记录工具
 
-一个轻量、隐私优先的个人剧集记录工具。用于记录看过哪些英美剧，以及目前看到第几季第几集。
-
-没有账号、评论、评分、社交或服务端数据库。每位使用者的数据都保存在自己浏览器的 `localStorage` 中。
+个人英美剧观看记录工具，用来快速记录看过哪些剧，以及当前看到第几季第几集。
 
 ## 功能
 
-- 从 TMDB 搜索剧集，补全剧名、海报、国家、总季数、总集数和播出状态
-- 记录待看、正在观看、已看完、已弃剧
-- 编辑进度，下一集自动跨季，支持“看完本季”快捷操作
-- 展示每季集数、海报、筛选、排序、卡片和列表两种视图
-- 导入旧 CSV，导出与恢复 JSON 备份
-- 批量改状态、删除，以及按 TMDB ID 清理重复记录
-
-## 使用前准备
-
-需要一个自己的 [TMDB API Key](https://www.themoviedb.org/settings/api)。这是 TMDB 的开发者接口密钥。
-
-> 请不要把 `.env` 文件或真实 Key 提交到 GitHub。项目已通过 `.gitignore` 忽略该文件。
+- TMDB 搜索、海报、首播年份、国家、总季集数与每季集数
+- 待看、正在观看、已看完、已弃剧和观看进度
+- 筛选、排序、卡片/列表展示和批量管理
+- CSV 导入、JSON 备份与恢复
+- Supabase 账号登录和电脑/手机云端同步
+- Cloudflare Pages Function 保护 TMDB API Key
+- 未配置 Supabase 时自动回退到 localStorage 本地模式
 
 ## 本地运行
 
-1. 克隆仓库：
+1. 安装依赖：`npm install`
+2. 复制配置：`cp .env.example .env`
+3. 按 `.env.example` 填写环境变量
+4. 启动：`npm run dev`
 
-   ```bash
-   git clone https://github.com/<你的用户名>/my-shows.git
-   cd my-shows
-   ```
+也可以在 macOS 上双击项目根目录的“打开 My Shows.command”。本地旧数据属于 `http://localhost:5173`，不要直接双击 `dist/index.html`。
 
-2. 安装依赖：
+## 云端上线
 
-   ```bash
-   npm install
-   ```
+按以下两份说明操作：
 
-3. 创建自己的环境变量文件：
+1. [Supabase 配置](docs/SUPABASE_SETUP.md)
+2. [GitHub + Cloudflare Pages 部署](docs/CLOUDFLARE_SETUP.md)
 
-   ```bash
-   cp .env.example .env
-   ```
+配置 Supabase 环境变量后，网页会显示登录页。账号需由你在 Supabase 控制台手动创建，网页不开放注册。
 
-4. 打开 `.env`，填入自己的 Key：
+## 数据迁移
 
-   ```env
-   TMDB_API_KEY=你的_tmdb_api_key
-   ```
+在原来的 `http://localhost:5173` 先导出 JSON 备份。配置 Supabase 并登录后，可以：
 
-5. 启动开发服务器：
+- 点击页面中的“迁移到云端”，合并当前浏览器的旧记录；或
+- 点击“恢复备份”，用 JSON 替换云端剧库。
 
-   ```bash
-   npm run dev
-   ```
+迁移完成后，在手机和电脑登录同一账号即可使用同一份数据。
 
-打开终端显示的地址，通常为 `http://localhost:5173`。
+## 安全说明
 
-## 日常使用
-
-1. 搜索剧名，确认后添加到剧库。
-2. 开始追剧时，将列表状态改为“正在观看”。
-3. 用“下一集”更新进度，“看完本季”进入下一季，最后一季会自动变为“已看完”。
-4. 用统计卡、筛选、排序或“搜索我的剧库”快速定位剧集。
-5. 定期点击“导出备份”，在换浏览器或清理缓存前保存 JSON 文件。
-
-## 导入旧记录
-
-支持两种 CSV：
-
-- 标准五列格式：`剧名, 国家, 季数, 状态, 进度`
-- 按观看状态分栏的旧清单格式
-
-导入后，点击“补全信息与海报”可从 TMDB 匹配必要信息。无法自动匹配的剧会显示在页面顶部，可修正剧名后再次尝试。
-
-## 数据与隐私
-
-- 剧库、进度和备份仅存于当前浏览器。
-- TMDB 原始响应、每集详情和海报图片文件不会保存；只保存必要的剧集字段与海报 URL。
-- 使用者彼此不会共享数据。若需要跨设备同步，可使用“导出备份”和“恢复备份”。
+- `.env`、`.env.local` 已被 Git 忽略。
+- 不能向 GitHub 提交数据库密码、Supabase `service_role` Key 或 TMDB Key。
+- Supabase 的 Publishable/anon Key 可以用于前端；数据权限由 `supabase/schema.sql` 中的 RLS 策略保护。
+- 线上 TMDB 请求经过 `/api/tmdb/*`，TMDB Key 仅配置为 Cloudflare Secret。
 
 ## 命令
 
 ```bash
-npm run dev     # 本地开发
-npm run build   # 生产构建
-npm run lint    # 代码检查
+npm run dev
+npm run build
+npm run lint
 ```
 
 ## 技术栈
 
-- React + TypeScript
-- Vite
-- Tailwind CSS
-- localStorage
-- TMDB API
+React、TypeScript、Vite、Tailwind CSS、Supabase REST/Auth、Cloudflare Pages Functions、TMDB API。

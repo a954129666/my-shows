@@ -17,6 +17,8 @@ export interface Show {
   name: string
   englishName: string
   country: string
+  /** 首播年份；旧数据未补全时为空 */
+  year?: number
   seasons: number
   episodes: number
   /** 每季集数，只保存季号和集数 */
@@ -38,6 +40,7 @@ export interface TmdbShowPreview {
   name: string
   englishName: string
   country: string
+  year?: number
   seasons: number
   episodes: number
   seasonEpisodes: SeasonInfo[]

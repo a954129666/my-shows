@@ -121,7 +121,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
                       <StatusTag kind="airing" value={item.status} />
                     </div>
                     <p className="mt-1 text-sm text-[var(--color-muted)]">
-                      {item.country} · {item.seasons}季 · {item.episodes}集
+                      {item.country} · {item.year ?? '年份待补'} · {item.seasons}季 · {item.episodes}集
                     </p>
                     <button
                       type="button"

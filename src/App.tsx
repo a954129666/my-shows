@@ -5,12 +5,15 @@ import {
   FileArrowUp,
   ListBullets,
   MagnifyingGlass,
+  SignOut,
   Spinner,
   SquaresFour,
   UploadSimple,
 } from '@phosphor-icons/react'
 import { SearchBar } from './components/SearchBar'
 import { ShowCard } from './components/ShowCard'
+import { LoginScreen } from './components/LoginScreen'
+import { useAuth } from './hooks/useAuth'
 import { useShows } from './hooks/useShows'
 import type { AiringStatus, Show, TmdbShowPreview, WatchStatus } from './types/show'
 import { parseCsvToShows } from './utils/csv'
@@ -64,7 +67,6 @@ function ShowSection({
   shows,
   emptyHint,
   onUpdateProgress,
-  onNextEpisode,
   onCompleteCurrentSeason,
   onWatchStatusChange,
   viewMode,
@@ -77,7 +79,6 @@ function ShowSection({
   shows: ReturnType<typeof useShows>['shows']
   emptyHint: string
   onUpdateProgress: (id: string, season: number, episode: number) => void
-  onNextEpisode: (id: string) => void
   onCompleteCurrentSeason: (id: string) => void
   onWatchStatusChange: (id: string, status: WatchStatus) => void
   viewMode: 'grid' | 'list'
@@ -104,7 +105,6 @@ function ShowSection({
               show={show}
               viewMode={viewMode}
               onUpdateProgress={onUpdateProgress}
-              onNextEpisode={onNextEpisode}
               onCompleteCurrentSeason={onCompleteCurrentSeason}
               onWatchStatusChange={onWatchStatusChange}
               onDelete={onDelete}
@@ -119,7 +119,7 @@ function ShowSection({
   )
 }
 
-function App() {
+function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: string; onLogout?: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const [enrichmentProgress, setEnrichmentProgress] = useState<{ completed: number; total: number } | null>(null)
@@ -132,13 +132,13 @@ function App() {
   const [selecting, setSelecting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkStatus, setBulkStatus] = useState<WatchStatus>('planned')
+  const [migrationMessage, setMigrationMessage] = useState<string | null>(null)
   const {
     shows,
     stats,
     showsByStatus,
     addShow,
     updateProgress,
-    nextEpisode,
     completeCurrentSeason,
     importShows,
     hasTmdbId,
@@ -151,7 +151,12 @@ function App() {
     deduplicateTmdbShows,
     unlinkedCount,
     enrichMissingMetadata,
-  } = useShows()
+    cloudLoading,
+    syncState,
+    syncError,
+    localImportCount,
+    migrateLocalShows,
+  } = useShows(userId)
 
   const sections = useMemo(
     () => [
@@ -161,11 +166,6 @@ function App() {
       { key: 'dropped' as const, title: '已弃剧', emptyHint: '暂时没有已弃剧的记录' },
     ],
     [],
-  )
-
-  const unmatchedShowNames = useMemo(
-    () => shows.filter((show) => show.tmdbId === 0).map((show) => show.name),
-    [shows],
   )
 
   function filterAndSort(items: Show[]): Show[] {
@@ -271,6 +271,7 @@ function App() {
       name: preview.name,
       englishName: preview.englishName,
       country: preview.country,
+      year: preview.year,
       seasons: preview.seasons,
       episodes: preview.episodes,
       seasonEpisodes: preview.seasonEpisodes,
@@ -310,6 +311,19 @@ function App() {
     setEnrichmentMessage(`已补全 ${result.updated} 部，${result.skipped} 部未能自动匹配`)
   }
 
+  async function handleLocalMigration() {
+    try {
+      const migrated = await migrateLocalShows()
+      setMigrationMessage(migrated > 0 ? `已将 ${migrated} 条本机记录迁移到云端` : '本机数据已全部存在于云端')
+    } catch (reason) {
+      setMigrationMessage(reason instanceof Error ? reason.message : '迁移失败，请稍后重试')
+    }
+  }
+
+  if (cloudLoading) {
+    return <div className="flex min-h-[100dvh] items-center justify-center gap-2 text-[var(--color-muted)]"><Spinner size={20} className="animate-spin" />正在读取云端剧库…</div>
+  }
+
   return (
     <div className="mx-auto min-h-[100dvh] max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
       <header className="border-b border-[var(--color-border)] pb-6">
@@ -321,6 +335,11 @@ function App() {
             <p className="mt-2 text-[var(--color-muted)]">My Shows · 个人英美剧观看记录</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {userId && (
+              <div className="flex items-center rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-muted)]" title={syncError ?? undefined}>
+                {syncState === 'saving' ? '正在同步…' : syncState === 'error' ? '同步失败' : '云端已同步'}
+              </div>
+            )}
             <button
               type="button"
               onClick={handleEnrichment}
@@ -356,6 +375,12 @@ function App() {
               <FileArrowUp size={18} />
               恢复备份
             </button>
+            {onLogout && (
+              <button type="button" onClick={onLogout} title={email ? `退出 ${email}` : '退出登录'} className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-3 py-2.5 text-sm text-[var(--color-muted)]">
+                <SignOut size={18} />
+                退出
+              </button>
+            )}
           </div>
           <input
             ref={fileInputRef}
@@ -388,12 +413,22 @@ function App() {
             {enrichmentMessage}
           </p>
         )}
-        {unmatchedShowNames.length > 0 && (
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            未匹配 TMDB：{unmatchedShowNames.join('、')}
-          </p>
-        )}
       </header>
+
+      {userId && localImportCount > 0 && (
+        <section className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-accent-muted)] bg-[var(--color-accent-muted)] px-4 py-3">
+          <div>
+            <p className="font-medium text-[var(--color-ink)]">发现这台浏览器中有 {localImportCount} 条本机记录</p>
+            <p className="mt-0.5 text-sm text-[var(--color-muted)]">迁移会跳过云端已有的同一部剧，不删除本机备份。</p>
+          </div>
+          <button type="button" onClick={handleLocalMigration} className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white">迁移到云端</button>
+        </section>
+      )}
+      {(migrationMessage || syncError) && (
+        <p className={`mt-3 text-sm ${syncError ? 'text-rose-600' : 'text-[var(--color-muted)]'}`} role="status">
+          {syncError ?? migrationMessage}
+        </p>
+      )}
 
       <main id="show-library" className="scroll-mt-4">
         <div className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3">
@@ -503,7 +538,6 @@ function App() {
               shows={filterAndSort(showsByStatus[section.key])}
               emptyHint={section.emptyHint}
               onUpdateProgress={updateProgress}
-              onNextEpisode={nextEpisode}
               onCompleteCurrentSeason={completeCurrentSeason}
               onWatchStatusChange={setWatchStatus}
               viewMode={viewMode}
@@ -516,6 +550,20 @@ function App() {
       </main>
     </div>
   )
+}
+
+function App() {
+  const auth = useAuth()
+
+  if (auth.configured && auth.loading && !auth.session) {
+    return <div className="flex min-h-[100dvh] items-center justify-center"><Spinner size={22} className="animate-spin text-[var(--color-accent)]" /></div>
+  }
+
+  if (auth.configured && !auth.session) {
+    return <LoginScreen loading={auth.loading} error={auth.error} onLogin={auth.login} />
+  }
+
+  return <LibraryApp userId={auth.session?.user.id} email={auth.session?.user.email} onLogout={auth.configured ? auth.logout : undefined} />
 }
 
 export default App

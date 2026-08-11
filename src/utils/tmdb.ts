@@ -1,6 +1,5 @@
 import type { AiringStatus, SeasonInfo, TmdbShowPreview } from '../types/show'
 
-const TMDB_BASE = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342'
 
 interface TmdbSearchItem {
@@ -25,18 +24,11 @@ interface TmdbTvDetail {
   number_of_episodes: number
   status: string
   poster_path: string | null
+  first_air_date: string
   seasons: Array<{
     season_number: number
     episode_count: number
   }>
-}
-
-function getApiKey(): string {
-  const key = import.meta.env.TMDB_API_KEY
-  if (!key) {
-    throw new Error('缺少 TMDB_API_KEY，请在 .env 中配置')
-  }
-  return key
 }
 
 function mapAiringStatus(tmdbStatus: string): AiringStatus {
@@ -71,12 +63,18 @@ function toPreview(detail: TmdbTvDetail): TmdbShowPreview {
     name: detail.name,
     englishName: detail.original_name,
     country: mapCountry(detail.origin_country),
+    year: parseYear(detail.first_air_date),
     seasons: detail.number_of_seasons,
     episodes: detail.number_of_episodes,
     seasonEpisodes: toSeasonInfo(detail.seasons),
     status: mapAiringStatus(detail.status),
     poster: detail.poster_path ? `${TMDB_IMAGE_BASE}${detail.poster_path}` : undefined,
   }
+}
+
+function parseYear(firstAirDate: string): number | undefined {
+  const year = Number(firstAirDate?.slice(0, 4))
+  return Number.isInteger(year) && year > 0 ? year : undefined
 }
 
 function toSeasonInfo(seasons: TmdbTvDetail['seasons']): SeasonInfo[] {
@@ -86,13 +84,12 @@ function toSeasonInfo(seasons: TmdbTvDetail['seasons']): SeasonInfo[] {
 }
 
 async function tmdbFetch<T>(path: string): Promise<T> {
-  const url = new URL(`${TMDB_BASE}${path}`)
-  url.searchParams.set('api_key', getApiKey())
+  const url = new URL(`/api/tmdb${path}`, window.location.origin)
   url.searchParams.set('language', 'zh-CN')
 
   const response = await fetch(url.toString())
   if (!response.ok) {
-    throw new Error(`TMDB 请求失败 (${response.status})`)
+    throw new Error(response.status === 503 ? 'TMDB 云端代理尚未配置' : `TMDB 请求失败 (${response.status})`)
   }
   return response.json() as Promise<T>
 }
