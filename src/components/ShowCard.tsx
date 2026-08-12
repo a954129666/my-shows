@@ -35,22 +35,22 @@ export function ShowCard({
   return (
     <>
       <article
-        className={`group flex overflow-hidden rounded-xl border bg-[var(--color-surface-elevated)] transition-colors ${
+        className={`group overflow-hidden rounded-xl border bg-[var(--color-surface-elevated)] transition duration-300 ${
           selected
             ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]'
-            : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'
-        } ${viewMode === 'list' ? 'items-stretch' : 'min-h-40'}`}
+            : 'border-[var(--color-border)] hover:-translate-y-0.5 hover:border-[var(--color-border-strong)] hover:shadow-[0_18px_45px_var(--color-shadow)]'
+        } ${viewMode === 'list' ? 'flex items-stretch' : 'block'}`}
       >
         <div className="relative shrink-0 bg-[var(--color-surface)]">
           {show.poster ? (
             <img
               src={show.poster}
               alt={`${show.name} 海报`}
-              className={`h-full object-cover ${viewMode === 'list' ? 'w-20 sm:w-[5.5rem]' : 'w-28 sm:w-32'}`}
+              className={`${viewMode === 'list' ? 'h-full w-20 sm:w-[5.5rem]' : 'aspect-[2/3] w-full'} object-cover`}
               loading="lazy"
             />
           ) : (
-            <div className={`flex h-full min-h-32 items-center justify-center px-2 text-center text-[11px] text-[var(--color-muted)] ${viewMode === 'list' ? 'w-20 sm:w-[5.5rem]' : 'w-28 sm:w-32'}`}>
+            <div className={`flex items-center justify-center px-2 text-center text-[11px] text-[var(--color-muted)] ${viewMode === 'list' ? 'h-full min-h-32 w-20 sm:w-[5.5rem]' : 'aspect-[2/3] w-full'}`}>
               暂无海报
             </div>
           )}
@@ -67,24 +67,24 @@ export function ShowCard({
           )}
         </div>
 
-        <div className={`min-w-0 flex flex-1 ${viewMode === 'list' ? 'flex-col gap-2 p-3 sm:grid sm:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,auto)] sm:items-center sm:gap-4' : 'flex-col p-3'}`}>
+        <div className={`min-w-0 ${viewMode === 'list' ? 'flex flex-1 flex-col gap-2 p-3 sm:grid sm:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,auto)] sm:items-center sm:gap-4' : 'p-2.5'}`}>
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="truncate text-[15px] font-semibold leading-5 text-[var(--color-ink)]">{show.name}</h3>
-                <p className="mt-0.5 truncate text-xs text-[var(--color-muted)]">{show.englishName}</p>
+                <h3 className="truncate text-sm font-semibold leading-5 text-[var(--color-ink)]">{show.name}</h3>
+                <p className="truncate text-[11px] text-[var(--color-muted)]">{show.englishName}</p>
               </div>
-              <StatusTag kind="airing" value={show.status} />
+              {viewMode === 'list' && <StatusTag kind="airing" value={show.status} />}
             </div>
 
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
+            <div className={`${viewMode === 'list' ? 'mt-2 flex' : 'mt-1.5 hidden sm:flex'} flex-wrap gap-x-2 gap-y-1 text-[11px] text-[var(--color-muted)]`}>
               <span>{show.country}</span>
               <span>{show.year ?? '年份待补'}</span>
-              <span>{show.seasons}季 {show.episodes}集</span>
+              {viewMode === 'list' && <span>{show.seasons}季 {show.episodes}集</span>}
               {metadataIncomplete && <span className="text-amber-700 dark:text-amber-300">资料待补</span>}
             </div>
 
-            {show.seasonEpisodes && show.seasonEpisodes.length > 0 && (
+            {viewMode === 'list' && show.seasonEpisodes && show.seasonEpisodes.length > 0 && (
               <details className="mt-2 text-xs">
                 <summary className="cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-ink)]">查看每季集数</summary>
                 <div className="mt-1.5 flex flex-wrap gap-1">
@@ -99,18 +99,18 @@ export function ShowCard({
           </div>
 
           {canEditProgress && (
-            <div className={`${viewMode === 'list' ? 'sm:text-right' : 'mt-auto pt-3'}`}>
-              <p className="text-[11px] text-[var(--color-muted)]">观看进度</p>
-              <p className="font-mono text-sm font-semibold text-[var(--color-accent)]">{formatProgress(show.currentSeason, show.currentEpisode)}</p>
+            <div className={`${viewMode === 'list' ? 'sm:text-right' : 'mt-2 border-t border-[var(--color-border)] pt-2'}`}>
+              <p className={`${viewMode === 'grid' ? 'sr-only' : 'text-[11px] text-[var(--color-muted)]'}`}>观看进度</p>
+              <p className="font-mono text-xs font-semibold text-[var(--color-accent)]">{formatProgress(show.currentSeason, show.currentEpisode)}</p>
             </div>
           )}
 
-          <div className={`flex min-w-0 items-center gap-1.5 ${viewMode === 'list' ? 'sm:justify-end' : 'mt-2'}`}>
+          <div className={`flex min-w-0 items-center gap-0.5 ${viewMode === 'list' ? 'sm:justify-end' : 'mt-1.5 flex-wrap justify-end'}`}>
             <select
               aria-label={`${show.name} 的观看状态`}
               value={show.watchStatus}
               onChange={(event) => onWatchStatusChange(show.id, event.target.value as WatchStatus)}
-              className="w-24 shrink-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs font-medium text-[var(--color-ink)] outline-none focus:border-[var(--color-accent)]"
+              className={`${viewMode === 'grid' ? 'mb-0.5 w-full' : 'w-24 shrink-0'} rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11px] font-medium text-[var(--color-ink)] outline-none focus:border-[var(--color-accent)]`}
             >
               <option value="watching">正在观看</option>
               <option value="planned">待观看</option>
@@ -119,17 +119,17 @@ export function ShowCard({
             </select>
 
             {canEditProgress && (
-              <button type="button" onClick={() => setEditing(true)} aria-label={`编辑 ${show.name} 的进度`} title="编辑进度" className="rounded-lg p-2 text-[var(--color-muted)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-ink)] active:scale-[0.98]">
-                <PencilSimple size={16} />
+              <button type="button" onClick={() => setEditing(true)} aria-label={`编辑 ${show.name} 的进度`} title="编辑进度" className="rounded-lg p-1.5 text-[var(--color-muted)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-ink)] active:scale-[0.98]">
+                <PencilSimple size={15} />
               </button>
             )}
             {show.watchStatus === 'watching' && (
-              <button type="button" onClick={() => onCompleteCurrentSeason(show.id)} aria-label={`${show.name} 看完本季`} title="看完本季" className="rounded-lg p-2 text-[var(--color-muted)] transition hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)] active:scale-[0.98]">
-                <Check size={16} weight="bold" />
+              <button type="button" onClick={() => onCompleteCurrentSeason(show.id)} aria-label={`${show.name} 看完本季`} title="看完本季" className="rounded-lg p-1.5 text-[var(--color-muted)] transition hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)] active:scale-[0.98]">
+                <Check size={15} weight="bold" />
               </button>
             )}
-            <button type="button" onClick={() => onDelete(show.id)} aria-label={`删除 ${show.name}`} title="删除" className="rounded-lg p-2 text-[var(--color-muted)] transition hover:bg-rose-50 hover:text-rose-600 active:scale-[0.98] dark:hover:bg-rose-950">
-              <Trash size={15} />
+            <button type="button" onClick={() => onDelete(show.id)} aria-label={`删除 ${show.name}`} title="删除" className="rounded-lg p-1.5 text-[var(--color-muted)] transition hover:bg-rose-50 hover:text-rose-600 active:scale-[0.98] dark:hover:bg-rose-950">
+              <Trash size={14} />
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowsClockwise,
   DownloadSimple,
@@ -9,6 +9,9 @@ import {
   Spinner,
   SquaresFour,
   UploadSimple,
+  DotsThree,
+  Moon,
+  Sun,
 } from '@phosphor-icons/react'
 import { SearchBar } from './components/SearchBar'
 import { ShowCard } from './components/ShowCard'
@@ -55,14 +58,14 @@ function StatCard({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg px-3 py-2.5 text-left transition active:scale-[0.98] ${
+      className={`rounded-xl px-4 py-3 text-left transition active:scale-[0.98] ${
         active
           ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
           : 'text-[var(--color-ink)] hover:bg-[var(--color-surface)]'
       }`}
     >
-      <p className="text-xs text-[var(--color-muted)]">{label}</p>
-      <p className="mt-0.5 font-mono text-xl font-semibold">{value}</p>
+      <p className="text-[11px] font-medium text-[var(--color-muted)]">{label}</p>
+      <p className="mt-1 font-mono text-2xl font-medium tracking-tight">{String(value).padStart(2, '0')}</p>
     </button>
   )
 }
@@ -93,9 +96,9 @@ function ShowSection({
   onSelectionChange: (id: string, selected: boolean) => void
 }) {
   return (
-    <section className="mt-7">
-      <div className="mb-3 flex items-baseline justify-between gap-4 border-b border-[var(--color-border)] pb-2">
-        <h2 className="text-lg font-semibold text-[var(--color-ink)]">{title}</h2>
+    <section className="mt-12">
+      <div className="mb-5 flex items-end justify-between gap-4">
+        <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--color-ink)]">{title}</h2>
         <span className="font-mono text-sm text-[var(--color-muted)]">{shows.length}</span>
       </div>
       {shows.length === 0 ? (
@@ -103,7 +106,7 @@ function ShowSection({
           {emptyHint}
         </p>
       ) : (
-        <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'grid grid-cols-1 gap-2'}>
+        <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7' : 'grid grid-cols-1 gap-2'}>
           {shows.map((show) => (
             <ShowCard
               key={show.id}
@@ -138,6 +141,11 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   const [selecting, setSelecting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkStatus, setBulkStatus] = useState<WatchStatus>('planned')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = window.localStorage.getItem('my-shows-theme')
+    if (saved === 'light' || saved === 'dark') return saved
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
   const {
     shows,
     stats,
@@ -160,6 +168,11 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
     syncState,
     syncError,
   } = useShows(userId)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('my-shows-theme', theme)
+  }, [theme])
 
   const sections = useMemo(
     () => [
@@ -331,23 +344,48 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   }
 
   return (
-    <div className="mx-auto min-h-[100dvh] max-w-[1360px] px-4 py-5 sm:px-6 lg:px-8">
-      <header>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-[-0.025em] text-[var(--color-ink)] sm:text-[2.15rem]">
-              我的影视库
-            </h1>
-            <p className="mt-1 text-sm text-[var(--color-muted)]">My Shows · 个人英美剧观看记录</p>
+    <div className="mx-auto min-h-[100dvh] max-w-[1440px] px-4 pb-20 sm:px-6 lg:px-10">
+      <header className="border-b border-[var(--color-border)] py-4 sm:py-5">
+        <div className="flex h-12 items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-accent)] text-lg font-black text-white" aria-hidden="true">M</div>
+            <div>
+              <h1 className="text-base font-semibold tracking-[-0.02em] text-[var(--color-ink)]">My Shows</h1>
+              <p className="text-[11px] text-[var(--color-muted)]">你的观影角落</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {userId && (
               <div className="flex items-center rounded-lg bg-[var(--color-surface-elevated)] px-3 py-2 text-xs text-[var(--color-muted)] shadow-[inset_0_0_0_1px_var(--color-border)]" title={syncError ?? undefined}>
                 {syncState === 'saving' ? '正在同步…' : syncState === 'error' ? '同步失败' : '云端已同步'}
               </div>
             )}
+            <details className="relative">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2.5 py-2 text-sm text-[var(--color-muted)] transition hover:text-[var(--color-ink)] active:scale-[0.98] sm:px-3">
+                <DotsThree size={18} />
+                <span className="hidden sm:inline">数据工具</span>
+              </summary>
+              <div className="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-2 shadow-[0_18px_45px_var(--color-shadow)]">
+                <button type="button" onClick={handleEnrichment} disabled={enrichmentProgress !== null || unlinkedCount === 0} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)] disabled:cursor-not-allowed disabled:opacity-50">
+                  {enrichmentProgress ? <Spinner size={17} className="animate-spin" /> : <ArrowsClockwise size={17} />}
+                  {enrichmentProgress ? `补全中 ${enrichmentProgress.completed}/${enrichmentProgress.total}` : `补全资料 (${unlinkedCount})`}
+                </button>
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)]"><UploadSimple size={17} />导入 CSV</button>
+                <button type="button" onClick={exportBackup} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)]"><DownloadSimple size={17} />导出备份</button>
+                <button type="button" onClick={() => restoreInputRef.current?.click()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)]"><FileArrowUp size={17} />恢复备份</button>
+              </div>
+            </details>
+            <button
+              type="button"
+              onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+              title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+              aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-2 text-[var(--color-muted)] transition hover:text-[var(--color-ink)] active:scale-[0.98]"
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             {onLogout && (
-              <button type="button" onClick={onLogout} title={email ? `退出 ${email}` : '退出登录'} aria-label="退出登录" className="rounded-lg p-2 text-[var(--color-muted)] transition hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-ink)] active:scale-[0.98]">
+              <button type="button" onClick={onLogout} title={email ? `退出 ${email}` : '退出登录'} aria-label="退出登录" className="rounded-xl p-2 text-[var(--color-muted)] transition hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-ink)] active:scale-[0.98]">
                 <SignOut size={19} />
               </button>
             )}
@@ -368,37 +406,35 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
           />
         </div>
 
-        <div className="mt-5">
-          <SearchBar onAdd={handleAddFromTmdb} isAdded={hasTmdbId} />
-        </div>
+      </header>
 
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-1 sm:grid-cols-4">
+      <main id="show-library" className="scroll-mt-4">
+        <section className="community-intro mt-5 grid gap-8 overflow-hidden rounded-2xl border border-[var(--color-border)] px-6 py-9 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,0.7fr)] lg:items-center lg:px-10 lg:py-11">
+          <div>
+            <h2 className="max-w-xl text-balance text-3xl font-semibold leading-[1.08] tracking-[-0.04em] sm:text-4xl">把看过的故事，留在这里。</h2>
+            <p className="mt-3 max-w-lg text-sm leading-6 text-[var(--color-muted)]">整理片单，接着上次的进度。慢慢形成属于你的观看档案。</p>
+          </div>
+          <div>
+            <SearchBar onAdd={handleAddFromTmdb} isAdded={hasTmdbId} />
+            <p className="mt-2 text-xs text-[var(--color-muted)]">发现一部剧，加入你的片单</p>
+          </div>
+        </section>
+
+        <section className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatCard label="总剧数" value={stats.total} active={watchFilter === 'all'} onClick={() => chooseWatchFilter('all')} />
           <StatCard label="观看中" value={stats.watching} active={watchFilter === 'watching'} onClick={() => chooseWatchFilter('watching')} />
           <StatCard label="已看完" value={stats.completed} active={watchFilter === 'completed'} onClick={() => chooseWatchFilter('completed')} />
           <StatCard label="待看" value={stats.planned} active={watchFilter === 'planned'} onClick={() => chooseWatchFilter('planned')} />
-        </div>
+        </section>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={handleEnrichment} disabled={enrichmentProgress !== null || unlinkedCount === 0} className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-3 py-2 text-sm font-medium text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50">
-            {enrichmentProgress ? <Spinner size={17} className="animate-spin" /> : <ArrowsClockwise size={17} />}
-            {enrichmentProgress ? `补全中 ${enrichmentProgress.completed}/${enrichmentProgress.total}` : `补全资料 (${unlinkedCount})`}
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2 text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)] active:scale-[0.98]"><UploadSimple size={17} />导入 CSV</button>
-          <button type="button" onClick={exportBackup} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2 text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)] active:scale-[0.98]"><DownloadSimple size={17} />导出备份</button>
-          <button type="button" onClick={() => restoreInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2 text-sm text-[var(--color-ink)] transition hover:bg-[var(--color-surface)] active:scale-[0.98]"><FileArrowUp size={17} />恢复备份</button>
-        </div>
         {enrichmentMessage && (
           <p className="mt-3 text-sm text-[var(--color-muted)]" role="status">
             {enrichmentMessage}
           </p>
         )}
-      </header>
-
       {syncError && <p className="mt-3 text-sm text-rose-600" role="status">{syncError}</p>}
 
-      <main id="show-library" className="scroll-mt-4">
-        <div className="mt-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3 shadow-[0_4px_16px_var(--color-shadow)]">
+        <div className="mt-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(15rem,1fr)_auto_auto_auto_auto]">
           <label className="flex min-w-48 flex-col gap-1 text-xs text-[var(--color-muted)]">
             搜索我的剧库

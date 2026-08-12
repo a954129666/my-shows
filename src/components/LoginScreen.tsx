@@ -1,12 +1,31 @@
-import { useState } from 'react'
-import { Spinner } from '@phosphor-icons/react'
+import { useEffect, useState } from 'react'
+import { Moon, Spinner, Sun } from '@phosphor-icons/react'
 
 export function LoginScreen({ loading, error, onLogin }: { loading: boolean; error: string | null; onLogin: (email: string, password: string) => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = window.localStorage.getItem('my-shows-theme')
+    if (saved === 'light' || saved === 'dark') return saved
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('my-shows-theme', theme)
+  }, [theme])
 
   return (
-    <main className="mx-auto flex min-h-[100dvh] max-w-md items-center px-5 py-12">
+    <main className="relative mx-auto flex min-h-[100dvh] max-w-md items-center px-5 py-12">
+      <button
+        type="button"
+        onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+        title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+        aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+        className="absolute right-5 top-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-2 text-[var(--color-muted)] transition hover:text-[var(--color-ink)] active:scale-[0.98]"
+      >
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
       <form
         onSubmit={(event) => {
           event.preventDefault()
