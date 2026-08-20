@@ -83,7 +83,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
       </form>
 
       {open && (
-        <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] shadow-lg">
+        <div className="absolute z-40 mt-2 max-h-[min(32rem,calc(100dvh-10rem))] w-full overflow-y-auto overscroll-contain rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] shadow-[0_20px_55px_var(--color-shadow)]">
           {loading && (
             <p className="px-4 py-6 text-center text-sm text-[var(--color-muted)]">搜索中...</p>
           )}

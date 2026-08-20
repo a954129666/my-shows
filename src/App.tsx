@@ -409,7 +409,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
       </header>
 
       <main id="show-library" className="scroll-mt-4">
-        <section className="community-intro mt-5 grid gap-8 overflow-hidden rounded-2xl border border-[var(--color-border)] px-6 py-9 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,0.7fr)] lg:items-center lg:px-10 lg:py-11">
+        <section className="community-intro relative z-10 mt-5 grid gap-8 overflow-visible rounded-2xl border border-[var(--color-border)] px-6 py-9 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,0.7fr)] lg:items-center lg:px-10 lg:py-11">
           <div>
             <h2 className="max-w-xl text-balance text-3xl font-semibold leading-[1.08] tracking-[-0.04em] sm:text-4xl">把看过的故事，留在这里。</h2>
             <p className="mt-3 max-w-lg text-sm leading-6 text-[var(--color-muted)]">整理片单，接着上次的进度。慢慢形成属于你的观看档案。</p>
