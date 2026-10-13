@@ -67,11 +67,11 @@ export function LoginScreen({ loading, error, message, recovery, signup, onLeave
           邮箱
           <input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-[var(--color-ink)]" />
         </label>}
-        {current === 'register' && <p className="mt-2 text-xs text-[var(--color-muted)]">密码至少 8 位，注册后请查收验证邮件。</p>}
         {current !== 'forgot' && <label className="mt-4 block text-sm text-[var(--color-muted)]">
           密码
-          <input type="password" required minLength={current === 'login' ? 6 : 8} autoComplete={current === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-[var(--color-ink)]" />
+          <input type="password" required minLength={current === 'login' ? 6 : 8} aria-describedby={current === 'register' || current === 'reset' ? 'password-hint' : undefined} autoComplete={current === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-[var(--color-ink)]" />
         </label>}
+        {(current === 'register' || current === 'reset') && <p id="password-hint" className="mt-2 text-xs text-[var(--color-muted)]">密码至少 8 位。</p>}
         {error && <p className="mt-3 text-sm text-[var(--color-danger)]" role="alert">{error}</p>}
         {message && <p className="mt-3 text-sm text-[var(--color-accent)]" role="status">{message}</p>}
         <button type="submit" disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-4 py-3 font-medium text-[var(--color-accent-contrast)] disabled:opacity-60">
