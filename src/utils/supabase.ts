@@ -63,6 +63,45 @@ function storeSession(session: AuthSession | null) {
   else localStorage.removeItem(SESSION_KEY)
 }
 
+export async function register(email: string, password: string): Promise<void> {
+  const config = requireConfig()
+  await parseResponse(await fetch(`${config.supabaseUrl}/auth/v1/signup?redirect_to=${encodeURIComponent(window.location.origin)}`, {
+    method: 'POST', headers: { apikey: config.anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  }))
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const config = requireConfig()
+  await parseResponse(await fetch(`${config.supabaseUrl}/auth/v1/recover?redirect_to=${encodeURIComponent(window.location.origin)}`, {
+    method: 'POST', headers: { apikey: config.anonKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+  }))
+}
+
+export async function acceptEmailCallback(): Promise<'recovery' | 'signup' | null> {
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  const token = hash.get('access_token')
+  const refresh = hash.get('refresh_token')
+  if (!token || !refresh) return null
+  const config = requireConfig()
+  const user = await parseResponse<AuthSession['user']>(await fetch(`${config.supabaseUrl}/auth/v1/user`, {
+    headers: { apikey: config.anonKey, Authorization: `Bearer ${token}` },
+  }))
+  storeSession({ access_token: token, refresh_token: refresh, user, expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') ?? 3600) })
+  window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  return hash.get('type') === 'recovery' ? 'recovery' : 'signup'
+}
+
+export async function updatePassword(password: string): Promise<void> {
+  const config = requireConfig()
+  const session = await restoreSession()
+  if (!session) throw new Error('重置链接已过期，请重新申请')
+  await parseResponse(await fetch(`${config.supabaseUrl}/auth/v1/user`, {
+    method: 'PUT', headers: { apikey: config.anonKey, Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  }))
+}
+
 export async function signIn(email: string, password: string): Promise<AuthSession> {
   const config = requireConfig()
   const response = await fetch(`${config.supabaseUrl}/auth/v1/token?grant_type=password`, {

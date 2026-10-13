@@ -691,6 +691,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
               onSelectionChange={toggleSelection}
             />
           ))}
+        <footer className="mt-8 pb-6 text-xs text-[var(--color-muted)]"><a href="/beta.html" className="hover:text-[var(--color-accent)]">公开测试版 · 隐私说明与 TMDB 数据来源</a></footer>
       </main>
       {notice && <div className="fixed bottom-5 left-4 right-4 z-30 mx-auto flex max-w-lg items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-4 py-3 shadow-[0_12px_35px_var(--color-shadow)]"><p className="min-w-0 flex-1 text-sm" role="status">{notice.message}</p>{notice.restore && <button type="button" onClick={() => { notice.restore?.(); setNotice({ message: '已撤销刚才的修改' }) }} className="inline-flex min-h-10 shrink-0 items-center gap-1 text-sm font-semibold text-[var(--color-accent)]"><ArrowCounterClockwise size={16} />撤销</button>}<button type="button" onClick={() => setNotice(null)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[var(--color-muted)]" aria-label="关闭提示"><X size={18} /></button></div>}
     </div>
@@ -704,8 +705,8 @@ function App() {
     return <div className="flex min-h-[100dvh] items-center justify-center"><Spinner size={22} className="animate-spin text-[var(--color-accent)]" /></div>
   }
 
-  if (auth.configured && !auth.session) {
-    return <LoginScreen loading={auth.loading} error={auth.error} onLogin={auth.login} />
+  if (auth.configured && (!auth.session || auth.recovery)) {
+    return <LoginScreen loading={auth.loading} error={auth.error} message={auth.message} recovery={auth.recovery} onAction={auth.accountAction} onLogin={auth.login} />
   }
 
   return <LibraryApp userId={auth.session?.user.id} email={auth.session?.user.email} onLogout={auth.configured ? auth.logout : undefined} />
