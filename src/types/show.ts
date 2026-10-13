@@ -36,6 +36,8 @@ export interface Show {
   currentSeason: number
   currentEpisode: number
   createdAt: string
+  /** 最近修改时间；旧记录回退到添加时间。 */
+  updatedAt?: string
 }
 
 /** 添加前获取的完整 TMDB 剧集资料。 */

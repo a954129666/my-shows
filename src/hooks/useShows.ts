@@ -152,12 +152,21 @@ export function useShows(userId?: string) {
   }, [library.shows, library.ownerId, userId, persistLocalShows])
 
   const changeShows = useCallback((transform: (current: Show[]) => Show[]) => {
+    const withModifiedTime = (current: Show[]) => {
+      const originals = new Map(current.map(show => [show.id, show]))
+      const now = new Date().toISOString()
+      return transform(current).map(show => {
+        const original = originals.get(show.id)
+        if (!original) return { ...show, updatedAt: show.updatedAt ?? now }
+        return JSON.stringify(original) === JSON.stringify(show) ? show : { ...show, updatedAt: now }
+      })
+    }
     if (userId) {
-      if (controllerRef.current?.userId === userId) controllerRef.current.sync.update(transform)
+      if (controllerRef.current?.userId === userId) controllerRef.current.sync.update(withModifiedTime)
       return
     }
     if (libraryRef.current.ownerId !== undefined) return
-    const next = { ...libraryRef.current, shows: transform(libraryRef.current.shows) }
+    const next = { ...libraryRef.current, shows: withModifiedTime(libraryRef.current.shows) }
     libraryRef.current = next
     setLibrary(next)
   }, [userId])

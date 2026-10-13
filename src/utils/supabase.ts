@@ -31,6 +31,7 @@ interface ShowRow {
   current_season: number
   current_episode: number
   created_at: string
+  updated_at?: string
   genres?: string[] | null
   review?: string | null
 }
@@ -203,6 +204,7 @@ function rowToShow(row: ShowRow): Show {
     currentSeason: row.current_season,
     currentEpisode: row.current_episode,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     genres: row.genres ?? undefined,
     review: row.review ?? undefined,
   }

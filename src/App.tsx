@@ -27,7 +27,7 @@ import type { AiringStatus, Show, TmdbShowPreview, WatchStatus } from './types/s
 import { parseCsvToShows } from './utils/csv'
 
 type WatchFilter = WatchStatus | 'all'
-type SortOrder = 'recent' | 'name' | 'progress'
+type SortOrder = 'updated' | 'recent' | 'name' | 'progress'
 type MetadataFilter = 'all' | 'complete' | 'incomplete'
 type SeasonFilter = 'all' | 'single' | 'multiple'
 
@@ -174,7 +174,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   const [countryFilter, setCountryFilter] = useState('all')
   const [yearFilter, setYearFilter] = useState('all')
   const [seasonFilter, setSeasonFilter] = useState<SeasonFilter>('all')
-  const [sortOrder, setSortOrder] = useState<SortOrder>(() => savedPreference('my-shows-sort', ['recent', 'name', 'progress'], 'recent'))
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() => savedPreference('my-shows-sort-v2', ['updated', 'recent', 'name', 'progress'], 'updated'))
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => savedPreference('my-shows-view', ['grid', 'list'], 'grid'))
   const [libraryQuery, setLibraryQuery] = useState('')
   const [selecting, setSelecting] = useState(false)
@@ -220,7 +220,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
   useEffect(() => {
     try {
       localStorage.setItem('my-shows-view', viewMode)
-      localStorage.setItem('my-shows-sort', sortOrder)
+      localStorage.setItem('my-shows-sort-v2', sortOrder)
       localStorage.setItem('my-shows-filter', watchFilter)
     } catch { /* The controls still work without persisted preferences. */ }
   }, [viewMode, sortOrder, watchFilter])
@@ -280,6 +280,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
       if (sortOrder === 'progress') {
         return a.currentSeason - b.currentSeason || a.currentEpisode - b.currentEpisode
       }
+      if (sortOrder === 'updated') return Date.parse(b.updatedAt ?? b.createdAt) - Date.parse(a.updatedAt ?? a.createdAt) || b.createdAt.localeCompare(a.createdAt)
       return b.createdAt.localeCompare(a.createdAt)
     })
   }
@@ -604,6 +605,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
           <label className="flex flex-col gap-1 text-xs text-[var(--color-muted)]">
             排序
             <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as SortOrder)} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink)]">
+              <option value="updated">最近修改</option>
               <option value="recent">最近添加</option>
               <option value="name">剧名</option>
               <option value="progress">观看进度</option>
