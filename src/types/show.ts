@@ -34,7 +34,7 @@ export interface Show {
   createdAt: string
 }
 
-/** TMDB 搜索展示用（含海报，不写入 localStorage） */
+/** 添加前获取的完整 TMDB 剧集资料。 */
 export interface TmdbShowPreview {
   tmdbId: number
   name: string

@@ -1,13 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Show, ShowInput, ShowStats, WatchStatus } from '../types/show'
 import { SEED_SHOWS } from '../utils/seed'
 import { createShowId, loadShows, saveShows } from '../utils/storage'
 import { findTvShowForEnrichment, getTvShowById } from '../utils/tmdb'
-import { deleteCloudShows, fetchCloudShows, replaceCloudShows, upsertCloudShows } from '../utils/supabase'
+import { deleteCloudShows, fetchCloudShows, upsertCloudShows } from '../utils/supabase'
+import { CloudShowSync, pendingShowDraftStorage, type CloudSyncSnapshot } from './cloudShowSync'
+import { advanceEpisode, finishCurrentSeason } from './showProgress'
 
 function initShows(): Show[] {
   const existing = loadShows()
   if (existing.length > 0) return existing
+  try {
+    // A deliberately emptied local library remains empty after refresh.
+    if (localStorage.getItem('my-shows') !== null) return existing
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
 
   return SEED_SHOWS.map((input) => ({
     ...input,
@@ -63,59 +71,101 @@ function progressScore(show: Show): number {
   return statusWeight[show.watchStatus] * 1_000_000 + show.currentSeason * 10_000 + show.currentEpisode
 }
 
+interface LibrarySnapshot extends Omit<CloudSyncSnapshot, 'syncState'> {
+  ownerId?: string
+  syncState: 'local' | CloudSyncSnapshot['syncState']
+}
+
 export function useShows(userId?: string) {
-  const [shows, setShows] = useState<Show[]>(() => initShows())
-  const [cloudLoading, setCloudLoading] = useState(Boolean(userId))
-  const [cloudReady, setCloudReady] = useState(false)
-  const [syncState, setSyncState] = useState<'local' | 'saving' | 'saved' | 'error'>(userId ? 'saving' : 'local')
-  const [syncError, setSyncError] = useState<string | null>(null)
+  const [library, setLibrary] = useState<LibrarySnapshot>(() => ({
+    ownerId: userId,
+    shows: userId ? [] : initShows(),
+    cloudLoading: Boolean(userId),
+    cloudReady: !userId,
+    syncState: userId ? 'saving' : 'local',
+    syncError: null,
+  }))
+  const libraryRef = useRef(library)
+  const controllerRef = useRef<{ userId: string; sync: CloudShowSync } | null>(null)
 
   useEffect(() => {
-    if (!userId) saveShows(shows)
-  }, [shows, userId])
-
-  useEffect(() => {
-    if (!userId) return
-    let active = true
-    setCloudLoading(true)
-    setCloudReady(false)
-    fetchCloudShows()
-      .then((remoteShows) => {
-        if (!active) return
-        setShows(remoteShows)
-        setSyncState('saved')
-        setSyncError(null)
-        setCloudReady(true)
-      })
-      .catch((reason) => {
-        if (!active) return
-        setSyncState('error')
-        setSyncError(reason instanceof Error ? reason.message : '无法读取云端数据')
-      })
-      .finally(() => {
-        if (active) setCloudLoading(false)
-      })
+    if (!userId) {
+      const local: LibrarySnapshot = {
+        ownerId: undefined, shows: libraryRef.current.ownerId === undefined ? libraryRef.current.shows : initShows(), cloudLoading: false,
+        cloudReady: true, syncState: 'local', syncError: null,
+      }
+      libraryRef.current = local
+      setLibrary(local)
+      return
+    }
+    const initial: LibrarySnapshot = {
+      ownerId: userId, shows: [], cloudLoading: true,
+      cloudReady: false, syncState: 'saving', syncError: null,
+    }
+    libraryRef.current = initial
+    setLibrary(initial)
+    const sync = new CloudShowSync(userId, {
+      fetch: fetchCloudShows,
+      upsert: upsertCloudShows,
+      remove: deleteCloudShows,
+      storage: pendingShowDraftStorage,
+      onChange(snapshot) {
+        const next = { ...snapshot, ownerId: userId }
+        libraryRef.current = next
+        setLibrary(next)
+      },
+    })
+    controllerRef.current = { userId, sync }
+    void sync.load()
     return () => {
-      active = false
+      sync.dispose()
+      if (controllerRef.current?.sync === sync) controllerRef.current = null
     }
   }, [userId])
 
+  // The scope check also hides old-account rows during an account switch render.
+  const currentLibrary = library.ownerId === userId ? library : {
+    shows: [], cloudLoading: Boolean(userId), cloudReady: false,
+    syncState: userId ? 'saving' as const : 'local' as const, syncError: null,
+  }
+  const { shows, cloudLoading, cloudReady, syncState, syncError } = currentLibrary
+
+  const persistLocalShows = useCallback(() => {
+    const current = libraryRef.current
+    if (current.ownerId !== undefined) return
+    let syncState: LibrarySnapshot['syncState'] = 'local'
+    let syncError: string | null = null
+    try {
+      saveShows(current.shows)
+    } catch {
+      syncState = 'error'
+      syncError = '无法保存到本机，请勿刷新。请检查浏览器存储设置或可用空间，再点击重新同步。'
+    }
+    if (current.syncState === syncState && current.syncError === syncError) return
+    const next = { ...current, syncState, syncError }
+    libraryRef.current = next
+    setLibrary(next)
+  }, [])
+
   useEffect(() => {
-    if (!userId || !cloudReady) return
-    setSyncState('saving')
-    const timer = window.setTimeout(() => {
-      upsertCloudShows(shows, userId)
-        .then(() => {
-          setSyncState('saved')
-          setSyncError(null)
-        })
-        .catch((reason) => {
-          setSyncState('error')
-          setSyncError(reason instanceof Error ? reason.message : '云端保存失败')
-        })
-    }, 350)
-    return () => window.clearTimeout(timer)
-  }, [shows, userId, cloudReady])
+    if (!userId && library.ownerId === undefined) persistLocalShows()
+  }, [library.shows, library.ownerId, userId, persistLocalShows])
+
+  const changeShows = useCallback((transform: (current: Show[]) => Show[]) => {
+    if (userId) {
+      if (controllerRef.current?.userId === userId) controllerRef.current.sync.update(transform)
+      return
+    }
+    if (libraryRef.current.ownerId !== undefined) return
+    const next = { ...libraryRef.current, shows: transform(libraryRef.current.shows) }
+    libraryRef.current = next
+    setLibrary(next)
+  }, [userId])
+
+  const retrySync = useCallback(async () => {
+    if (userId && controllerRef.current?.userId === userId) await controllerRef.current.sync.retry()
+    else if (!userId) persistLocalShows()
+  }, [userId, persistLocalShows])
 
   const stats = useMemo(() => computeStats(shows), [shows])
 
@@ -135,12 +185,12 @@ export function useShows(userId?: string) {
       id: createShowId(),
       createdAt: new Date().toISOString(),
     }
-    setShows((prev) => [show, ...prev])
-  }, [])
+    changeShows((prev) => [show, ...prev])
+  }, [changeShows])
 
   const updateShow = useCallback((id: string, patch: Partial<Show>) => {
-    setShows((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
-  }, [])
+    changeShows((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+  }, [changeShows])
 
   const updateProgress = useCallback(
     (id: string, currentSeason: number, currentEpisode: number) => {
@@ -150,63 +200,12 @@ export function useShows(userId?: string) {
   )
 
   const nextEpisode = useCallback((id: string) => {
-    setShows((prev) =>
-      prev.map((show) => {
-        if (show.id !== id) return show
-
-        const currentSeasonInfo = show.seasonEpisodes?.find(
-          (season) => season.season === show.currentSeason,
-        )
-        const episodeLimit = currentSeasonInfo?.episodes
-        if (!episodeLimit || show.currentEpisode < episodeLimit) {
-          return { ...show, currentEpisode: show.currentEpisode + 1 }
-        }
-
-        const nextSeason = show.seasonEpisodes?.find(
-          (season) => season.season === show.currentSeason + 1,
-        )
-        if (nextSeason || show.currentSeason < show.seasons) {
-          return {
-            ...show,
-            currentSeason: nextSeason?.season ?? show.currentSeason + 1,
-            currentEpisode: 1,
-          }
-        }
-
-        return {
-          ...show,
-          currentEpisode: episodeLimit,
-          watchStatus: 'completed',
-        }
-      }),
-    )
-  }, [])
+    changeShows((prev) => prev.map((show) => show.id === id ? advanceEpisode(show) : show))
+  }, [changeShows])
 
   const completeCurrentSeason = useCallback((id: string) => {
-    setShows((prev) =>
-      prev.map((show) => {
-        if (show.id !== id) return show
-
-        const currentSeasonInfo = show.seasonEpisodes?.find(
-          (season) => season.season === show.currentSeason,
-        )
-        const nextSeason = show.seasonEpisodes?.find(
-          (season) => season.season === show.currentSeason + 1,
-        )
-        const finalEpisode = currentSeasonInfo?.episodes ?? show.currentEpisode
-
-        if (nextSeason || show.currentSeason < show.seasons) {
-          return {
-            ...show,
-            currentSeason: nextSeason?.season ?? show.currentSeason + 1,
-            currentEpisode: 1,
-          }
-        }
-
-        return { ...show, currentEpisode: finalEpisode, watchStatus: 'completed' }
-      }),
-    )
-  }, [])
+    changeShows((prev) => prev.map((show) => show.id === id ? finishCurrentSeason(show) : show))
+  }, [changeShows])
 
   const setWatchStatus = useCallback(
     (id: string, watchStatus: WatchStatus) => {
@@ -216,38 +215,27 @@ export function useShows(userId?: string) {
   )
 
   const removeShow = useCallback((id: string) => {
-    setShows((prev) => prev.filter((show) => show.id !== id))
-    if (userId) deleteCloudShows([id]).catch(() => setSyncState('error'))
-  }, [userId])
+    changeShows((prev) => prev.filter((show) => show.id !== id))
+  }, [changeShows])
 
   const updateManyWatchStatus = useCallback((ids: string[], watchStatus: WatchStatus) => {
     const idSet = new Set(ids)
-    setShows((prev) => prev.map((show) => (idSet.has(show.id) ? { ...show, watchStatus } : show)))
-  }, [])
+    changeShows((prev) => prev.map((show) => (idSet.has(show.id) ? { ...show, watchStatus } : show)))
+  }, [changeShows])
 
   const removeManyShows = useCallback((ids: string[]) => {
     const idSet = new Set(ids)
-    setShows((prev) => prev.filter((show) => !idSet.has(show.id)))
-    if (userId) deleteCloudShows(ids).catch(() => setSyncState('error'))
-  }, [userId])
+    changeShows((prev) => prev.filter((show) => !idSet.has(show.id)))
+  }, [changeShows])
 
   const replaceShows = useCallback((incoming: Show[]) => {
-    setShows(incoming)
-    if (userId) {
-      setSyncState('saving')
-      replaceCloudShows(incoming, userId)
-        .then(() => setSyncState('saved'))
-        .catch((reason) => {
-          setSyncState('error')
-          setSyncError(reason instanceof Error ? reason.message : '恢复云端备份失败')
-        })
-    }
-  }, [userId])
+    changeShows(() => incoming)
+  }, [changeShows])
 
   const duplicateTmdbGroupCount = useMemo(() => findDuplicateGroups(shows).length, [shows])
 
   const deduplicateTmdbShows = useCallback(() => {
-    setShows((prev) => {
+    changeShows((prev) => {
       const duplicateGroups = findDuplicateGroups(prev)
       const duplicateIds = new Set(duplicateGroups.flatMap((group) => group.map((show) => show.id)))
       const merged = duplicateGroups.map((group) => {
@@ -262,16 +250,12 @@ export function useShows(userId?: string) {
         }
       })
       const next = [...merged, ...prev.filter((show) => !duplicateIds.has(show.id))]
-      if (userId) {
-        const keptIds = new Set(next.map((show) => show.id))
-        deleteCloudShows(prev.filter((show) => !keptIds.has(show.id)).map((show) => show.id)).catch(() => setSyncState('error'))
-      }
       return next
     })
-  }, [userId])
+  }, [changeShows])
 
   const importShows = useCallback((incoming: ShowInput[]) => {
-    setShows((prev) => {
+    changeShows((prev) => {
       const existingTmdbIds = new Set(prev.map((s) => s.tmdbId))
       const merged = [...prev]
 
@@ -282,11 +266,12 @@ export function useShows(userId?: string) {
           id: createShowId(),
           createdAt: new Date().toISOString(),
         })
+        if (input.tmdbId) existingTmdbIds.add(input.tmdbId)
       }
 
       return merged
     })
-  }, [])
+  }, [changeShows])
 
   const hasTmdbId = useCallback(
     (tmdbId: number) => shows.some((s) => s.tmdbId === tmdbId),
@@ -314,7 +299,7 @@ export function useShows(userId?: string) {
           if (!preview) {
             skipped += 1
           } else {
-            setShows((current) =>
+            changeShows((current) =>
               current.map((show) =>
                 show.id === target.id
                   ? {
@@ -347,7 +332,7 @@ export function useShows(userId?: string) {
 
       return { updated, skipped, total: targets.length }
     },
-    [shows],
+    [shows, changeShows],
   )
 
   return {
@@ -371,6 +356,8 @@ export function useShows(userId?: string) {
     unlinkedCount,
     enrichMissingMetadata,
     cloudLoading,
+    cloudReady,
+    retrySync,
     syncState,
     syncError,
   }

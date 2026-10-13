@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { Check, PencilSimple, Trash } from '@phosphor-icons/react'
+import { Check, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import type { Show, WatchStatus } from '../types/show'
 import { formatProgress } from '../utils/csv'
 import { ProgressEditor } from './ProgressEditor'
 import { StatusTag } from './StatusTag'
+import { advanceEpisode } from '../hooks/showProgress'
 
 interface ShowCardProps {
   show: Show
   viewMode: 'grid' | 'list'
   onUpdateProgress: (id: string, season: number, episode: number) => void
+  onNextEpisode: (id: string) => void
   onCompleteCurrentSeason: (id: string) => void
   onDelete: (id: string) => void
   selecting: boolean
@@ -21,6 +23,7 @@ export function ShowCard({
   show,
   viewMode,
   onUpdateProgress,
+  onNextEpisode,
   onCompleteCurrentSeason,
   onDelete,
   selecting,
@@ -31,6 +34,8 @@ export function ShowCard({
   const [editing, setEditing] = useState(false)
   const metadataIncomplete = show.tmdbId <= 0 || !show.poster || !show.year || !show.seasonEpisodes?.length
   const canEditProgress = show.watchStatus !== 'completed'
+  const next = advanceEpisode(show)
+  const canAdvance = next.currentSeason !== show.currentSeason || next.currentEpisode !== show.currentEpisode || next.watchStatus !== show.watchStatus
 
   return (
     <>
@@ -71,8 +76,8 @@ export function ShowCard({
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="truncate text-sm font-semibold leading-5 text-[var(--color-ink)]">{show.name}</h3>
-                <p className="truncate text-[11px] text-[var(--color-muted)]">{show.englishName}</p>
+                <h3 title={show.name} className="truncate text-sm font-semibold leading-5 text-[var(--color-ink)]">{show.name}</h3>
+                <p title={show.englishName} className="truncate text-[11px] text-[var(--color-muted)]">{show.englishName}</p>
               </div>
               {viewMode === 'list' && <StatusTag kind="airing" value={show.status} />}
             </div>
@@ -101,7 +106,7 @@ export function ShowCard({
           {canEditProgress && (
             <div className={`${viewMode === 'list' ? 'sm:text-right' : 'mt-2 border-t border-[var(--color-border)] pt-2'}`}>
               <p className={`${viewMode === 'grid' ? 'sr-only' : 'text-[11px] text-[var(--color-muted)]'}`}>观看进度</p>
-              <p className="font-mono text-xs font-semibold text-[var(--color-accent)]">{formatProgress(show.currentSeason, show.currentEpisode)}</p>
+              <p className="font-mono text-xs font-semibold text-[var(--color-accent)]">{show.watchStatus === 'planned' || show.currentEpisode === 0 ? '尚未开始' : formatProgress(show.currentSeason, show.currentEpisode)}</p>
             </div>
           )}
 
@@ -118,6 +123,9 @@ export function ShowCard({
               <option value="dropped">已弃剧</option>
             </select>
 
+            {show.watchStatus === 'watching' && (
+              <button type="button" onClick={() => onNextEpisode(show.id)} disabled={!canAdvance} aria-label={`记录 ${show.name} 看完一集`} title={canAdvance ? '看完一集' : '当前已知集数已记录'} className="rounded-lg p-1.5 text-[var(--color-muted)] transition hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)] active:scale-[0.98] disabled:opacity-40"><Plus size={15} /></button>
+            )}
             {canEditProgress && (
               <button type="button" onClick={() => setEditing(true)} aria-label={`编辑 ${show.name} 的进度`} title="编辑进度" className="rounded-lg p-1.5 text-[var(--color-muted)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-ink)] active:scale-[0.98]">
                 <PencilSimple size={15} />

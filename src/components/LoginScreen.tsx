@@ -1,25 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Moon, Spinner, Sun } from '@phosphor-icons/react'
+import { useTheme } from '../hooks/useTheme'
 
 export function LoginScreen({ loading, error, onLogin }: { loading: boolean; error: string | null; onLogin: (email: string, password: string) => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = window.localStorage.getItem('my-shows-theme')
-    if (saved === 'light' || saved === 'dark') return saved
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  })
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    window.localStorage.setItem('my-shows-theme', theme)
-  }, [theme])
+  const { theme, toggleTheme } = useTheme()
 
   return (
     <main className="relative mx-auto flex min-h-[100dvh] max-w-md items-center px-5 py-12">
       <button
         type="button"
-        onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+        onClick={toggleTheme}
         title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
         aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
         className="absolute right-5 top-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-2 text-[var(--color-muted)] transition hover:text-[var(--color-ink)] active:scale-[0.98]"
@@ -44,8 +36,8 @@ export function LoginScreen({ loading, error, onLogin }: { loading: boolean; err
           密码
           <input type="password" required minLength={6} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-[var(--color-ink)]" />
         </label>
-        {error && <p className="mt-3 text-sm text-rose-600" role="alert">{error}</p>}
-        <button type="submit" disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-4 py-3 font-medium text-white disabled:opacity-60">
+        {error && <p className="mt-3 text-sm text-[var(--color-danger)]" role="alert">{error}</p>}
+        <button type="submit" disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-accent)] px-4 py-3 font-medium text-[var(--color-accent-contrast)] disabled:opacity-60">
           {loading && <Spinner size={18} className="animate-spin" />}
           登录
         </button>

@@ -59,7 +59,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
         <label htmlFor="show-search" className="sr-only">
           搜索剧名
         </label>
-        <div className="relative flex-1">
+        <div className="relative min-w-0 flex-1">
           <MagnifyingGlass
             size={18}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)]"
@@ -76,7 +76,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
         <button
           type="submit"
           disabled={loading || !query.trim()}
-          className="rounded-xl bg-[var(--color-accent)] px-5 py-3 text-sm font-medium text-white transition active:scale-[0.98] disabled:opacity-50"
+          className="rounded-xl bg-[var(--color-accent)] px-5 py-3 text-sm font-medium text-[var(--color-accent-contrast)] transition active:scale-[0.98] disabled:opacity-50"
         >
           {loading ? <Spinner size={18} className="animate-spin" /> : '搜索'}
         </button>
@@ -87,7 +87,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
           {loading && (
             <p className="px-4 py-6 text-center text-sm text-[var(--color-muted)]">搜索中...</p>
           )}
-          {error && <p className="px-4 py-4 text-sm text-rose-600">{error}</p>}
+          {error && <p className="px-4 py-4 text-sm text-[var(--color-danger)]">{error}</p>}
           {!loading && !error && results.length === 0 && (
             <p className="px-4 py-6 text-center text-sm text-[var(--color-muted)]">
               没有找到相关剧集，请换一个剧名试试
@@ -129,7 +129,7 @@ export function SearchBar({ onAdd, isAdded }: SearchBarProps) {
                       type="button"
                       disabled={added}
                       onClick={() => handleAdd(item)}
-                      className="mt-2 inline-flex items-center gap-1 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white transition active:scale-[0.98] disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-700"
+                      className="mt-2 inline-flex items-center gap-1 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent-contrast)] transition active:scale-[0.98] disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-700"
                     >
                       {added ? (
                         '已在库中'
