@@ -99,8 +99,8 @@ export function ShowCard({
             </div>
 
             <div className="mt-2 flex flex-wrap gap-1" aria-label={`${show.name} 的类别`}>
-              {(show.genres ?? []).slice(0, 2).map((genre) => <span key={genre} title={genre} className="max-w-full truncate rounded-md bg-[var(--color-surface)] px-1.5 py-0.5 text-[10px] leading-4 text-[var(--color-muted)]">{genre}</span>)}
-              {(show.genres?.length ?? 0) > 2 && <span title={show.genres?.join('、')} aria-label={`全部类别：${show.genres?.join('、')}`} className="rounded-md bg-[var(--color-surface)] px-1.5 py-0.5 text-[10px] leading-4 text-[var(--color-muted)]">+{show.genres!.length - 2}</span>}
+              {(viewMode === 'list' ? show.genres ?? [] : (show.genres ?? []).slice(0, 2)).map((genre) => <span key={genre} title={genre} className={`max-w-full rounded-md bg-[var(--color-surface)] px-1.5 py-0.5 text-[10px] leading-4 text-[var(--color-muted)] ${viewMode === 'list' ? 'break-words' : 'truncate'}`}>{genre}</span>)}
+              {viewMode === 'grid' && (show.genres?.length ?? 0) > 2 && <span title={show.genres?.join('、')} aria-label={`全部类别：${show.genres?.join('、')}`} className="rounded-md bg-[var(--color-surface)] px-1.5 py-0.5 text-[10px] leading-4 text-[var(--color-muted)]">+{show.genres!.length - 2}</span>}
               {!show.genres?.length && <span className="text-[10px] leading-4 text-[var(--color-muted)]">类别待补</span>}
             </div>
 
