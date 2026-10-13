@@ -41,6 +41,8 @@ function isStoredShow(value: unknown): value is Show {
     && Number.isFinite(show.currentSeason) && Number.isFinite(show.currentEpisode)
     && ['ended', 'ongoing'].includes(show.status ?? '')
     && ['watching', 'completed', 'planned', 'dropped'].includes(show.watchStatus ?? '')
+    && (show.genres === undefined || (Array.isArray(show.genres) && show.genres.every((genre) => typeof genre === 'string')))
+    && (show.review === undefined || (typeof show.review === 'string' && show.review.length <= 200))
 }
 
 export const pendingShowDraftStorage: DraftStorage = {

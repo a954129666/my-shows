@@ -5,12 +5,14 @@ import { formatProgress } from '../utils/csv'
 import { ProgressEditor } from './ProgressEditor'
 import { StatusTag } from './StatusTag'
 import { advanceEpisode } from '../hooks/showProgress'
+import { ReviewEditor } from './ReviewEditor'
 
 interface ShowCardProps {
   show: Show
   viewMode: 'grid' | 'list'
   onUpdateProgress: (id: string, season: number, episode: number) => void
   onNextEpisode: (id: string) => void
+  onUpdateDetails: (id: string, genres: string[], review: string) => void
   onCompleteCurrentSeason: (id: string) => void
   onDelete: (id: string) => void
   selecting: boolean
@@ -24,6 +26,7 @@ export function ShowCard({
   viewMode,
   onUpdateProgress,
   onNextEpisode,
+  onUpdateDetails,
   onCompleteCurrentSeason,
   onDelete,
   selecting,
@@ -32,7 +35,8 @@ export function ShowCard({
   onWatchStatusChange,
 }: ShowCardProps) {
   const [editing, setEditing] = useState(false)
-  const metadataIncomplete = show.tmdbId <= 0 || !show.poster || !show.year || !show.seasonEpisodes?.length
+  const [reviewEditing, setReviewEditing] = useState(false)
+  const metadataIncomplete = show.tmdbId <= 0 || !show.poster || !show.year || !show.seasonEpisodes?.length || show.genres === undefined
   const canEditProgress = show.watchStatus !== 'completed'
   const next = advanceEpisode(show)
   const canAdvance = next.currentSeason !== show.currentSeason || next.currentEpisode !== show.currentEpisode || next.watchStatus !== show.watchStatus
@@ -47,6 +51,11 @@ export function ShowCard({
         } ${viewMode === 'list' ? 'flex items-stretch' : 'block'}`}
       >
         <div className="relative shrink-0 bg-[var(--color-surface)]">
+          {viewMode === 'grid' && show.status === 'ended' && (
+            <span className="pointer-events-none absolute right-2 top-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2 py-1 text-[11px] font-medium text-[var(--color-ink)] shadow-[0_2px_8px_var(--color-shadow)]">
+              已完结
+            </span>
+          )}
           {show.poster ? (
             <img
               src={show.poster}
@@ -87,6 +96,12 @@ export function ShowCard({
               <span>{show.year ?? '年份待补'}</span>
               {viewMode === 'list' && <span>{show.seasons}季 {show.episodes}集</span>}
               {metadataIncomplete && <span className="text-amber-700 dark:text-amber-300">资料待补</span>}
+            </div>
+
+            <div className="mt-2 flex flex-wrap gap-1" aria-label={`${show.name} 的类别`}>
+              {(show.genres ?? []).slice(0, 2).map((genre) => <span key={genre} title={genre} className="max-w-full truncate rounded-md bg-[var(--color-surface)] px-1.5 py-0.5 text-[10px] leading-4 text-[var(--color-muted)]">{genre}</span>)}
+              {(show.genres?.length ?? 0) > 2 && <span title={show.genres?.join('、')} aria-label={`全部类别：${show.genres?.join('、')}`} className="rounded-md bg-[var(--color-surface)] px-1.5 py-0.5 text-[10px] leading-4 text-[var(--color-muted)]">+{show.genres!.length - 2}</span>}
+              {!show.genres?.length && <span className="text-[10px] leading-4 text-[var(--color-muted)]">类别待补</span>}
             </div>
 
             {viewMode === 'list' && show.seasonEpisodes && show.seasonEpisodes.length > 0 && (
@@ -140,6 +155,11 @@ export function ShowCard({
               <Trash size={14} />
             </button>
           </div>
+
+          <button type="button" onClick={() => setReviewEditing(true)} disabled={selecting} aria-label={`${show.review ? '编辑' : '填写'} ${show.name} 的短评和类别`} title={show.review || '写短评，也可补充类别'} className={`flex min-h-9 min-w-0 items-center gap-1.5 text-left text-[11px] leading-5 text-[var(--color-muted)] transition hover:text-[var(--color-accent)] disabled:opacity-50 ${viewMode === 'list' ? 'sm:col-span-full' : 'mt-2 w-full border-t border-[var(--color-border)] pt-2'}`}>
+            <PencilSimple size={13} className="shrink-0" />
+            <span className="line-clamp-2 break-words">{show.review || '写短评'}</span>
+          </button>
         </div>
       </article>
 
@@ -153,6 +173,7 @@ export function ShowCard({
           }}
         />
       )}
+      {reviewEditing && <ReviewEditor show={show} onClose={() => setReviewEditing(false)} onSave={(genres, review) => { onUpdateDetails(show.id, genres, review); setReviewEditing(false) }} />}
     </>
   )
 }

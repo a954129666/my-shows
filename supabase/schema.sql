@@ -11,6 +11,8 @@ create table if not exists public.shows (
   episodes integer not null default 0 check (episodes >= 0),
   season_episodes jsonb,
   poster text,
+  genres jsonb,
+  review text not null default '' check (char_length(review) <= 200),
   airing_status text not null check (airing_status in ('ended', 'ongoing')),
   watch_status text not null check (watch_status in ('watching', 'completed', 'planned', 'dropped')),
   current_season integer not null default 1 check (current_season >= 1),
@@ -18,6 +20,10 @@ create table if not exists public.shows (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Also supports projects created with an earlier version of this schema.
+alter table public.shows add column if not exists genres jsonb;
+alter table public.shows add column if not exists review text not null default '';
 
 create index if not exists shows_user_id_created_at_idx
   on public.shows (user_id, created_at desc);

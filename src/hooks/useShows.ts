@@ -246,6 +246,9 @@ export function useShows(userId?: string) {
           watchStatus: progressSource.watchStatus,
           currentSeason: progressSource.currentSeason,
           currentEpisode: progressSource.currentEpisode,
+          review: progressSource.review || group.find((show) => show.review?.trim())?.review || '',
+          genres: group.some((show) => show.genres !== undefined)
+            ? [...new Set(group.flatMap((show) => show.genres ?? []))] : undefined,
           createdAt: [...group].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0].createdAt,
         }
       })
@@ -279,14 +282,14 @@ export function useShows(userId?: string) {
   )
 
   const unlinkedCount = useMemo(
-    () => shows.filter((show) => show.tmdbId === 0 || !show.poster || !show.seasonEpisodes || !show.year).length,
+    () => shows.filter((show) => show.tmdbId === 0 || !show.poster || !show.seasonEpisodes || !show.year || show.genres === undefined).length,
     [shows],
   )
 
   const enrichMissingMetadata = useCallback(
     async (onProgress?: (completed: number, total: number) => void) => {
       const targets = shows.filter(
-        (show) => show.tmdbId === 0 || !show.poster || !show.seasonEpisodes || !show.year,
+        (show) => show.tmdbId === 0 || !show.poster || !show.seasonEpisodes || !show.year || show.genres === undefined,
       )
       let updated = 0
       let skipped = 0
@@ -314,6 +317,7 @@ export function useShows(userId?: string) {
                       seasonEpisodes: preview.seasonEpisodes,
                       poster: preview.poster,
                       status: preview.status,
+                      genres: show.genres ?? preview.genres ?? [],
                     }
                   : show,
               ),

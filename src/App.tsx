@@ -40,7 +40,7 @@ function savedPreference<T extends string>(key: string, values: readonly T[], fa
 }
 
 function hasCompleteMetadata(show: Show): boolean {
-  return show.tmdbId > 0 && Boolean(show.poster && show.year && show.seasonEpisodes?.length)
+  return show.tmdbId > 0 && Boolean(show.poster && show.year && show.seasonEpisodes?.length) && show.genres !== undefined
 }
 
 function isShowBackup(value: unknown): value is Show[] {
@@ -62,6 +62,8 @@ function isShowBackup(value: unknown): value is Show[] {
       || !['watching', 'completed', 'planned', 'dropped'].includes(show.watchStatus ?? '')
       || (show.year !== undefined && !integerAtLeast(show.year, 1))
       || (show.poster !== undefined && typeof show.poster !== 'string')) return false
+    if ((show.genres !== undefined && (!Array.isArray(show.genres) || !show.genres.every((genre) => typeof genre === 'string')))
+      || (show.review !== undefined && (typeof show.review !== 'string' || show.review.length > 200))) return false
     if (show.seasonEpisodes !== undefined && (!Array.isArray(show.seasonEpisodes)
       || !show.seasonEpisodes.every((season) => season !== null && typeof season === 'object'
         && integerAtLeast(season.season, 1) && integerAtLeast(season.episodes, 0)))) return false
@@ -104,6 +106,7 @@ function ShowSection({
   emptyHint,
   onUpdateProgress,
   onNextEpisode,
+  onUpdateDetails,
   onCompleteCurrentSeason,
   onWatchStatusChange,
   viewMode,
@@ -117,6 +120,7 @@ function ShowSection({
   emptyHint: string
   onUpdateProgress: (id: string, season: number, episode: number) => void
   onNextEpisode: (id: string) => void
+  onUpdateDetails: (id: string, genres: string[], review: string) => void
   onCompleteCurrentSeason: (id: string) => void
   onWatchStatusChange: (id: string, status: WatchStatus) => void
   viewMode: 'grid' | 'list'
@@ -144,6 +148,7 @@ function ShowSection({
               viewMode={viewMode}
               onUpdateProgress={onUpdateProgress}
               onNextEpisode={onNextEpisode}
+              onUpdateDetails={onUpdateDetails}
               onCompleteCurrentSeason={onCompleteCurrentSeason}
               onWatchStatusChange={onWatchStatusChange}
               onDelete={onDelete}
@@ -262,7 +267,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
       const matchesMetadata = metadataFilter === 'all' || (metadataFilter === 'complete' ? completeMetadata : !completeMetadata)
       const matchesQuery =
         !normalizedQuery ||
-        [show.name, show.englishName, show.country].some((value) =>
+        [show.name, show.englishName, show.country, ...(show.genres ?? []), show.review ?? ''].some((value) =>
           value.toLocaleLowerCase().includes(normalizedQuery),
         )
       const matchesCountry = countryFilter === 'all' || show.country.split(/\s*\/\s*/).includes(countryFilter)
@@ -321,6 +326,11 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
 
   function handleStatus(id: string, status: WatchStatus) {
     changeRecord(id, () => setWatchStatus(id, status), '已更新观看状态')
+  }
+
+  function handleDetails(id: string, genres: string[], review: string) {
+    updateShow(id, { genres, review })
+    setNotice({ message: '已更新类别和短评' })
   }
 
   function toggleSelection(id: string, selected: boolean) {
@@ -436,6 +446,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
       seasonEpisodes: preview.seasonEpisodes,
       status: preview.status,
       poster: preview.poster,
+      genres: preview.genres ?? [],
       watchStatus: 'planned',
       currentSeason: 1,
       currentEpisode: 0,
@@ -585,7 +596,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
               <input
                 value={libraryQuery}
                 onChange={(event) => setLibraryQuery(event.target.value)}
-                placeholder="剧名、英文名或国家"
+                placeholder="剧名、国家、类别或短评"
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-9 pr-3 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-accent)]"
               />
             </span>
@@ -670,6 +681,7 @@ function LibraryApp({ userId, email, onLogout }: { userId?: string; email?: stri
               emptyHint={section.emptyHint}
               onUpdateProgress={handleProgress}
               onNextEpisode={handleNextEpisode}
+              onUpdateDetails={handleDetails}
               onCompleteCurrentSeason={handleSeasonComplete}
               onWatchStatusChange={handleStatus}
               viewMode={viewMode}

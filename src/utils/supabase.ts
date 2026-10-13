@@ -30,6 +30,8 @@ interface ShowRow {
   current_season: number
   current_episode: number
   created_at: string
+  genres?: string[] | null
+  review?: string | null
 }
 
 function requireConfig() {
@@ -141,6 +143,8 @@ function rowToShow(row: ShowRow): Show {
     currentSeason: row.current_season,
     currentEpisode: row.current_episode,
     createdAt: row.created_at,
+    genres: row.genres ?? undefined,
+    review: row.review ?? undefined,
   }
 }
 
@@ -162,6 +166,8 @@ function showToRow(show: Show, userId: string): ShowRow {
     current_season: show.currentSeason,
     current_episode: show.currentEpisode,
     created_at: show.createdAt,
+    ...(show.genres !== undefined ? { genres: show.genres } : {}),
+    ...(show.review !== undefined ? { review: show.review } : {}),
   }
 }
 
@@ -172,11 +178,26 @@ export async function fetchCloudShows(): Promise<Show[]> {
 
 export async function upsertCloudShows(shows: Show[], userId: string): Promise<void> {
   if (shows.length === 0) return
-  await databaseFetch('shows?on_conflict=id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify(shows.map((show) => showToRow(show, userId))),
-  })
+  // PostgREST batches require uniform keys. Legacy-only writes omit the new columns.
+  const withGenres = shows.some((show) => show.genres !== undefined)
+  const withReviews = shows.some((show) => show.review !== undefined)
+  try {
+    await databaseFetch('shows?on_conflict=id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(shows.map((show) => ({
+        ...showToRow(show, userId),
+        ...(withGenres ? { genres: show.genres ?? null } : {}),
+        ...(withReviews ? { review: show.review ?? '' } : {}),
+      }))),
+    })
+  } catch (reason) {
+    const message = reason instanceof Error ? reason.message : ''
+    if (/\b(genres|review)\b/.test(message) && /column|schema cache|does not exist/i.test(message)) {
+      throw new Error('云端尚未启用类别和短评字段，请完成数据库更新后重新同步')
+    }
+    throw reason
+  }
 }
 
 export async function deleteCloudShows(ids: string[]): Promise<void> {

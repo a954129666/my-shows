@@ -25,6 +25,7 @@ interface TmdbTvDetail {
   status: string
   poster_path: string | null
   first_air_date: string
+  genres?: Array<{ id: number; name: string }>
   seasons: Array<{
     season_number: number
     episode_count: number
@@ -69,6 +70,7 @@ function toPreview(detail: TmdbTvDetail): TmdbShowPreview {
     seasonEpisodes: toSeasonInfo(detail.seasons),
     status: mapAiringStatus(detail.status),
     poster: detail.poster_path ? `${TMDB_IMAGE_BASE}${detail.poster_path}` : undefined,
+    genres: [...new Set((detail.genres ?? []).map((genre) => genre.name.trim()).filter(Boolean))],
   }
 }
 

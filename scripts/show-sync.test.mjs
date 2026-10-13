@@ -207,6 +207,28 @@ test('disposing during an upsert prevents the remaining delete and state callbac
   assert.deepEqual(h.storage.get('account-a').deletedIds, ['a'])
 })
 
+test('genres and personal reviews survive a failed save, refresh, and retry', async (t) => {
+  const storage = new Map()
+  const first = harness({ storage, upsert: async () => { throw new Error('offline') } })
+  await first.sync.load()
+  first.sync.update((items) => items.map((item) => ({ ...item, genres: ['悬疑', '恐怖'], review: '氛围很好，结尾值得回味。' })))
+  await first.sync.retry()
+  assert.equal(first.latest().syncState, 'error')
+  assert.equal(storage.get('account-a').changedShows[0].review, '氛围很好，结尾值得回味。')
+  first.sync.dispose()
+  const restored = harness({ storage })
+  t.after(() => restored.sync.dispose())
+  await restored.sync.load()
+  assert.deepEqual(restored.latest().shows[0].genres, ['悬疑', '恐怖'])
+  assert.equal(restored.latest().shows[0].review, '氛围很好，结尾值得回味。')
+  await restored.sync.retry()
+  assert.equal(restored.latest().syncState, 'saved')
+  assert.equal(restored.server.get('a').review, '氛围很好，结尾值得回味。')
+  restored.sync.update((items) => items.map((item) => ({ ...item, review: '' })))
+  await restored.sync.retry()
+  assert.equal(restored.server.get('a').review, '')
+})
+
 test('blocked draft storage warns immediately and promptly saves to cloud before clearing the warning', async (t) => {
   let release
   const gate = new Promise((done) => { release = done })

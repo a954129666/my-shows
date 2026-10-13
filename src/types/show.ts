@@ -25,6 +25,10 @@ export interface Show {
   seasonEpisodes?: SeasonInfo[]
   /** TMDB 海报 URL，只保存链接，不保存图片文件或原始响应 */
   poster?: string
+  /** TMDB 类型或用户补充的类别；旧记录尚未获取时为空。 */
+  genres?: string[]
+  /** 最多 200 个字符的个人短评。 */
+  review?: string
   /** TMDB 播出状态 */
   status: AiringStatus
   /** 个人观看列表分类 */
@@ -46,6 +50,7 @@ export interface TmdbShowPreview {
   seasonEpisodes: SeasonInfo[]
   status: AiringStatus
   poster?: string
+  genres?: string[]
 }
 
 export interface ShowStats {
