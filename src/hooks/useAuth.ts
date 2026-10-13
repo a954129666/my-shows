@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { readSignupState, saveSignupState, SIGNUP_STATE_KEY } from '../utils/signupState'
 import { acceptEmailCallback, isSupabaseConfigured, register, requestPasswordReset, updatePassword, restoreSession, signIn, signOut, type AuthSession } from '../utils/supabase'
 
 export function useAuth() {
@@ -7,11 +8,21 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [recovery, setRecovery] = useState(false)
+  const [signup, setSignup] = useState(readSignupState)
+
+  useEffect(() => {
+    const sync = () => setSignup(readSignupState())
+    const onStorage = (event: StorageEvent) => { if (event.key === SIGNUP_STATE_KEY) sync() }
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', sync)
+    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('focus', sync) }
+  }, [])
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
     acceptEmailCallback().then(async (type) => {
       setRecovery(type === 'recovery')
+      if (type === 'signup') { setSignup(readSignupState()); setMessage('邮箱已确认，请输入密码登录。'); setSession(null); return }
       setSession(await restoreSession())
     }).catch(() => setError('邮件链接失效或连接失败，请重新申请')).finally(() => setLoading(false))
   }, [])
@@ -22,6 +33,8 @@ export function useAuth() {
     setMessage(null)
     try {
       setSession(await signIn(email, password))
+      saveSignupState(null)
+      setSignup(null)
     } catch (reason) {
       setError(reason instanceof TypeError ? '连接失败，请检查网络后重试' : reason instanceof Error ? reason.message : '登录失败')
     } finally {
@@ -39,7 +52,13 @@ export function useAuth() {
     setError(null)
     setMessage(null)
     try {
-      if (mode === 'register') { await register(email, password); setMessage('请查收验证邮件，点击链接完成注册后登录。') }
+      if (mode === 'register') {
+        await register(email, password)
+        const next = { email, verified: false }
+        saveSignupState(next)
+        setSignup(next)
+        setMessage('验证邮件已发送，请在邮箱中点击确认链接。')
+      }
       if (mode === 'forgot') { await requestPasswordReset(email); setMessage('如果该邮箱已注册，你将收到密码重置邮件。') }
       if (mode === 'reset') { await updatePassword(password); setRecovery(false); setMessage('密码已更新') }
     } catch (reason) {
@@ -47,5 +66,6 @@ export function useAuth() {
     } finally { setLoading(false) }
   }
 
-  return { configured: isSupabaseConfigured, session, loading, error, message, recovery, accountAction, login, logout }
+  function leaveWaiting() { saveSignupState(null); setSignup(null); setMessage(null); setError(null) }
+  return { configured: isSupabaseConfigured, session, loading, error, message, recovery, signup, leaveWaiting, accountAction, login, logout }
 }

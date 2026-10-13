@@ -1,4 +1,5 @@
 import type { Show } from '../types/show'
+import { saveSignupState } from './signupState'
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '')
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
@@ -41,8 +42,22 @@ function requireConfig() {
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { message?: string; error_description?: string } | null
-    throw new Error(body?.message ?? body?.error_description ?? `请求失败 (${response.status})`)
+    const body = (await response.json().catch(() => null)) as { message?: string; msg?: string; error_description?: string; error?: string; error_code?: string; code?: string } | null
+    const code = body?.error_code ?? body?.code
+    const messages: Record<string, string> = {
+      email_address_invalid: '邮箱地址无效，请使用可以正常收信的真实邮箱。',
+      email_address_not_authorized: '当前发信服务不允许向该邮箱发送邮件，请管理员检查 Supabase Custom SMTP 配置。',
+      weak_password: '密码不符合要求，请按网站的密码规则设置，建议使用至少 8 位并包含大小写字母、数字和符号。',
+      signup_disabled: '网站尚未开放注册，请管理员在 Supabase 中启用注册。',
+      email_provider_disabled: '邮箱注册尚未开启，请管理员检查 Supabase Email 设置。',
+      user_already_exists: '该邮箱已注册，请直接登录或使用忘记密码。',
+      captcha_failed: '验证码验证失败或尚未接入，请管理员检查验证码配置。',
+      over_email_send_rate_limit: '验证邮件发送过于频繁，请稍后重试。',
+      email_not_confirmed: '邮箱尚未验证，请先点击验证邮件中的链接。',
+      invalid_credentials: '邮箱或密码不正确，请检查后重试。',
+    }
+    const detail = body?.message ?? body?.msg ?? body?.error_description ?? body?.error
+    throw new Error((code && messages[code]) ? `${messages[code]}（${code}）` : detail ? `${detail} (${response.status}${code ? `, ${code}` : ''})` : `请求失败 (${response.status}${code ? `, ${code}` : ''})`)
   }
   if (response.status === 204) return undefined as T
   const text = await response.text()
@@ -87,9 +102,15 @@ export async function acceptEmailCallback(): Promise<'recovery' | 'signup' | nul
   const user = await parseResponse<AuthSession['user']>(await fetch(`${config.supabaseUrl}/auth/v1/user`, {
     headers: { apikey: config.anonKey, Authorization: `Bearer ${token}` },
   }))
-  storeSession({ access_token: token, refresh_token: refresh, user, expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') ?? 3600) })
+  const recovery = hash.get('type') === 'recovery'
+  if (recovery) {
+    storeSession({ access_token: token, refresh_token: refresh, user, expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') ?? 3600) })
+  } else {
+    storeSession(null)
+    if (user.email) saveSignupState({ email: user.email, verified: true })
+  }
   window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  return hash.get('type') === 'recovery' ? 'recovery' : 'signup'
+  return recovery ? 'recovery' : 'signup'
 }
 
 export async function updatePassword(password: string): Promise<void> {

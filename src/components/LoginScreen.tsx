@@ -1,14 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { SignupState } from '../utils/signupState'
 import { Moon, Spinner, Sun } from '@phosphor-icons/react'
 import { useTheme } from '../hooks/useTheme'
 
-export function LoginScreen({ loading, error, message, recovery, onAction, onLogin }: { loading: boolean; error: string | null; message: string | null; recovery: boolean; onAction: (mode: 'register' | 'forgot' | 'reset', email: string, password: string) => void; onLogin: (email: string, password: string) => void }) {
+export function LoginScreen({ loading, error, message, recovery, signup, onLeaveWaiting, onAction, onLogin }: { loading: boolean; error: string | null; message: string | null; recovery: boolean; signup: SignupState | null; onLeaveWaiting: () => void; onAction: (mode: 'register' | 'forgot' | 'reset', email: string, password: string) => void; onLogin: (email: string, password: string) => void }) {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login')
   const current = recovery ? 'reset' : mode
   const labels = { login: '登录我的剧库', register: '创建账号并发送验证邮件', forgot: '发送重置邮件', reset: '保存新密码' }
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const { theme, toggleTheme } = useTheme()
+  const signupEmail = signup?.email
+  const signupVerified = signup?.verified
+  useEffect(() => {
+    if (signupEmail) { setEmail(signupEmail); setPassword(''); setMode('login') }
+  }, [signupEmail, signupVerified])
+
+  if (signup && !signup.verified && !recovery) return (
+    <main className="mx-auto flex min-h-[100dvh] max-w-md items-center px-5 py-12">
+      <section className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-6 shadow-sm" aria-live="polite">
+        <p className="text-xs font-semibold text-[var(--color-accent)]">MY SHOWS · 邮箱验证</p>
+        <div className="mt-5 flex items-center gap-3"><Spinner size={24} className="animate-spin text-[var(--color-accent)]" /><h1 className="text-2xl font-semibold">等待邮箱确认</h1></div>
+        <p className="mt-4 text-sm leading-6 text-[var(--color-muted)]">验证邮件已发送至</p>
+        <p className="mt-1 break-all font-medium">{signup.email}</p>
+        <p className="mt-4 text-sm leading-6 text-[var(--color-muted)]">请前往邮箱点击验证链接。保留此页面，同一浏览器完成验证后会自动更新；随后输入密码登录。</p>
+        <p className="mt-3 text-xs leading-5 text-[var(--color-muted)]">没有收到？请检查垃圾邮件。若在其他设备验证，返回此页登录即可。</p>
+        <button type="button" onClick={() => { setEmail(signup.email); setMode('login'); onLeaveWaiting() }} className="mt-5 min-h-11 w-full rounded-xl border border-[var(--color-border)] px-4 text-sm font-medium">已验证，返回登录</button>
+      </section>
+    </main>
+  )
 
   return (
     <main className="relative mx-auto flex min-h-[100dvh] max-w-md items-center px-5 py-12">
@@ -30,6 +50,7 @@ export function LoginScreen({ loading, error, message, recovery, onAction, onLog
         className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-6 shadow-sm"
       >
         <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-accent)]">My Shows</p>
+        {signup?.verified && <p className="mt-4 rounded-lg bg-[var(--color-accent-muted)] px-3 py-3 text-sm text-[var(--color-accent)]" role="status">邮箱已确认，请输入密码登录。也可以返回原来的页面继续。</p>}
         {(current === 'login' || current === 'register') && <div className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-[var(--color-surface)] p-1" role="group" aria-label="账号操作">
           {(['login', 'register'] as const).map((item) => <button
             key={item}

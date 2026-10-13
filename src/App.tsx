@@ -706,7 +706,7 @@ function App() {
   }
 
   if (auth.configured && (!auth.session || auth.recovery)) {
-    return <LoginScreen loading={auth.loading} error={auth.error} message={auth.message} recovery={auth.recovery} onAction={auth.accountAction} onLogin={auth.login} />
+    return <LoginScreen loading={auth.loading} error={auth.error} message={auth.message} recovery={auth.recovery} signup={auth.signup} onLeaveWaiting={auth.leaveWaiting} onAction={auth.accountAction} onLogin={auth.login} />
   }
 
   return <LibraryApp userId={auth.session?.user.id} email={auth.session?.user.email} onLogout={auth.configured ? auth.logout : undefined} />
